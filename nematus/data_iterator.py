@@ -22,18 +22,55 @@ class TextIterator:
                  shuffle_each_epoch=False,
                  sort_by_length=True,
                  use_factor=False,
-                 maxibatch_size=20):
+                 maxibatch_size=20,
+                 aux_datasets=None,
+                 aux_dictionaries=None):
+
+        self.multisource=False
+        if aux_datasets is not None:
+            self.multisource=True
+
         if shuffle_each_epoch:
             self.source_orig = source
             self.target_orig = target
-            self.source, self.target = shuffle.main([self.source_orig, self.target_orig], temporary=True)
+
+            # multi-source inputs
+            if self.multisource:
+                self.aux_source_orig = aux_datasets[0]
+                self.aux_target_orig = aux_datasets[0]
+                self.source, self.target, self.aux_source, self.aux_target = \
+                    shuffle.main([self.source_orig, self.target_orig,
+                                  self.aux_source_orig, self.aux_target_orig], temporary=True)
+            # single source
+            else:
+                self.source, self.target = shuffle.main([self.source_orig, self.target_orig], temporary=True)
         else:
             self.source = fopen(source, 'r')
             self.target = fopen(target, 'r')
+            # read auxiliary (multi-source input)
+            if self.multisource:
+                self.aux_source = fopen(aux_datasets[0], 'r')
+                self.aux_target = fopen(aux_datasets[1], 'r')
+
         self.source_dicts = []
         for source_dict in source_dicts:
             self.source_dicts.append(load_dict(source_dict))
         self.target_dict = load_dict(target_dict)
+
+        # read auxiliary dictionaries (multi-source input)
+        self.aux_source_dicts = []
+        self.aux_target_dict = {}
+        if self.multisource:
+            # use separate dictionaries for auxiliary context
+            if aux_dictionaries[:-1] and aux_dictionaries[1]:
+                for aux_source_dict in aux_dictionaries[:-1]:
+                    self.aux_source_dicts.append(load_dict(aux_source_dict))
+                self.aux_target_dict = load_dict(aux_dictionaries[1])
+            else:
+                # otherwise use the same dictionary as the main input
+                for source_dict in source_dicts:
+                    self.aux_source_dicts.append(load_dict(source_dict))
+                self.aux_target_dict = load_dict(target_dict)
 
         self.batch_size = batch_size
         self.maxlen = maxlen
@@ -42,6 +79,14 @@ class TextIterator:
 
         self.n_words_source = n_words_source
         self.n_words_target = n_words_target
+        # TODO: add separate option for auxiliary. limit the auxiliary context to the same as the main input for now
+        if self.multisource:
+            self.aux_n_words_source = n_words_source
+            self.aux_n_words_target = n_words_target
+        else:
+            self.aux_n_words_source = 0
+            self.aux_n_words_target = 0
+
 
         if self.n_words_source > 0:
             for d in self.source_dicts:
@@ -54,13 +99,25 @@ class TextIterator:
                     if idx >= self.n_words_target:
                         del self.target_dict[key]
 
+        if self.aux_n_words_source > 0:
+            for d in self.aux_source_dicts:
+                for key, idx in d.items():
+                    if idx >= self.aux_n_words_source:
+                        del d[key]
+
+        if self.aux_n_words_target > 0:
+            for key, idx in self.aux_target_dict.items():
+                if idx >= self.aux_n_words_target:
+                    del self.aux_target_dict[key]
+
         self.shuffle = shuffle_each_epoch
         self.sort_by_length = sort_by_length
 
         self.source_buffer = []
         self.target_buffer = []
+        self.aux_source_buffer = []
+        self.aux_target_buffer = []
         self.k = batch_size * maxibatch_size
-        
 
         self.end_of_data = False
 
@@ -72,10 +129,19 @@ class TextIterator:
     
     def reset(self):
         if self.shuffle:
-            self.source, self.target = shuffle.main([self.source_orig, self.target_orig], temporary=True)
+            # multi-source shuffling
+            if self.aux_source:
+                self.source, self.target, self.aux_source, self_aux_target = \
+                    shuffle.main([self.source_orig, self.target_orig,
+                                  self.aux_source_orig, self.aux_target_orig], temporary=True)
+            else:
+                self.source, self.target = shuffle.main([self.source_orig, self.target_orig], temporary=True)
         else:
             self.source.seek(0)
             self.target.seek(0)
+            if self.aux_source:
+                self.aux_source.seek(0)
+                self.aux_target.seek(0)
 
     def next(self):
         if self.end_of_data:
@@ -85,22 +151,43 @@ class TextIterator:
 
         source = []
         target = []
+        aux_source = []
+        aux_target = []
 
         # fill buffer, if it's empty
         assert len(self.source_buffer) == len(self.target_buffer), 'Buffer size mismatch!'
+        if self.aux_source:
+            assert len(self.aux_source_buffer) == len(self.aux_target_buffer) == len(self.source_buffer), \
+                'Incorrect length of auxiliary input!'
 
+        # filling the buffer for the first time
         if len(self.source_buffer) == 0:
             for ss in self.source:
                 ss = ss.split()
                 tt = self.target.readline().split()
+                if self.multisource:
+                    aux_ss = self.aux_source.readline().split()
+                    aux_tt = self.aux_target.readline().split()
                 
                 if self.skip_empty and (len(ss) == 0 or len(tt) == 0):
                     continue
                 if len(ss) > self.maxlen or len(tt) > self.maxlen:
                     continue
 
+                if self.aux_source:
+                    # TODO: make special option for skip w/ auxiliary context
+                    if self.skip_empty and (len(aux_ss) == 0 or len(aux_tt) == 0):
+                        continue
+                    # TODO: make special option for maxlen w/ auxiliary context
+                    if len(aux_ss) > self.maxlen or len(aux_tt) > self.maxlen:
+                        continue
+
                 self.source_buffer.append(ss)
                 self.target_buffer.append(tt)
+                if self.multisource:
+                    self.source_buffer.append(aux_ss)
+                    self.target_buffer.append(aux_tt)
+
                 if len(self.source_buffer) == self.k:
                     break
 
@@ -120,9 +207,18 @@ class TextIterator:
                 self.source_buffer = _sbuf
                 self.target_buffer = _tbuf
 
+                if self.multisource:
+                    _aux_sbuf = [self.aux_source_buffer[i] for i in tidx]
+                    _aux_tbuf = [self.aux_target_buffer[i] for i in tidx]
+                    self.aux_source_buffer = _aux_sbuf
+                    self.aux_target_buffer = _aux_tbuf
+
             else:
                 self.source_buffer.reverse()
                 self.target_buffer.reverse()
+                if self.multisource:
+                    self.aux_source_buffer.reverse()
+                    self.aux_target_buffer.reverse()
 
 
         try:
@@ -143,20 +239,45 @@ class TextIterator:
                     tmp.append(w)
                 ss = tmp
 
-                # read from source file and map to word index
+                if self.multisource:
+                    try:
+                        ss =     self.source_buffer.pop()
+                    except IndexError:
+                        break
+                    tmp = []
+                    for w in aux_ss:
+                        if self.use_factor:
+                            w = [self.aux_source_dicts[i][f] if f in self.aux_source_dicts[i] else 1 for (i, f) in enumerate(w.split('|'))]
+                        else:
+                            w = [self.aux_source_dicts[0][w] if w in self.aux_source_dicts[0] else 1]
+                        tmp.append(w)
+                    aux_ss = tmp
+
+                # read from target file and map to word index
                 tt = self.target_buffer.pop()
-                tt = [self.target_dict[w] if w in self.target_dict else 1
-                      for w in tt]
+                tt = [self.target_dict[w] if w in self.target_dict else 1 for w in tt]
                 if self.n_words_target > 0:
                     tt = [w if w < self.n_words_target else 1 for w in tt]
 
+                # read from auxiliary files and map to word index
+                if self.multisource:
+                    aux_tt = self.aux_target_buffer.pop()
+                    aux_tt = [self.aux_target_dict[w] if w in self.aux_target_dict else 1 for w in tt]
+                    if self.aux_n_words_target > 0:
+                        aux_tt = [w if w < self.aux_n_words_target else 1 for w in tt]
+
                 source.append(ss)
                 target.append(tt)
+                if self.multisource:
+                    aux_source.append(aux_ss)
+                    aux_target.append(aux_tt)
 
                 if len(source) >= self.batch_size or \
-                        len(target) >= self.batch_size:
+                        len(target) >= self.batch_size or \
+                        len(aux_source) >= self.batch_size or \
+                        len(aux_target) >= self.batch_size:
                     break
         except IOError:
             self.end_of_data = True
 
-        return source, target
+        return source, target, aux_source, aux_target

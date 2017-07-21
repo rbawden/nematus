@@ -20,8 +20,9 @@ import logging
 import itertools
 
 from subprocess import Popen
+from collections import OrderedDict, namedtuple
 
-from collections import OrderedDict
+import theano.d3viz as d3v
 
 profile = False
 
@@ -84,58 +85,92 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
 def init_params(options):
     params = OrderedDict()
 
-    # embedding
-    params = get_layer_param('embedding')(options, params, options['n_words_src'], options['dim_per_factor'], options['factors'], suffix='')
-    if not options['tie_encoder_decoder_embeddings']:
-        params = get_layer_param('embedding')(options, params, options['n_words'], options['dim_word'], suffix='_dec')
-
-    # encoder: bidirectional RNN
-    params = get_layer_param(options['encoder'])(options, params,
-                                              prefix='encoder',
-                                              nin=options['dim_word'],
-                                              dim=options['dim'],
-                                              recurrence_transition_depth=options['enc_recurrence_transition_depth'])
-    params = get_layer_param(options['encoder'])(options, params,
-                                              prefix='encoder_r',
-                                              nin=options['dim_word'],
-                                              dim=options['dim'],
-                                              recurrence_transition_depth=options['enc_recurrence_transition_depth'])
-    if options['enc_depth'] > 1:
-        for level in range(2, options['enc_depth'] + 1):
-            prefix_f = pp('encoder', level)
-            prefix_r = pp('encoder_r', level)
-
-            if level <= options['enc_depth_bidirectional']:
-                params = get_layer_param(options['encoder'])(options, params,
-                                                             prefix=prefix_f,
-                                                             nin=options['dim'],
-                                                             dim=options['dim'],
-                                                             recurrence_transition_depth=options['enc_recurrence_transition_depth'])
-                params = get_layer_param(options['encoder'])(options, params,
-                                                             prefix=prefix_r,
-                                                             nin=options['dim'],
-                                                             dim=options['dim'],
-                                                             recurrence_transition_depth=options['enc_recurrence_transition_depth'])
-            else:
-                params = get_layer_param(options['encoder'])(options, params,
-                                                             prefix=prefix_f,
-                                                             nin=options['dim'] * 2,
-                                                             dim=options['dim'] * 2,
-                                                             recurrence_transition_depth=options['enc_recurrence_transition_depth'])
+    # --------------- ENCODER(S) ---------------
+    # allow for multiple encoders
+    num_encoders = 1
+    if options["multisource_type"] is not None:
+        num_encoders += 1
 
 
+
+
+    # initialise encoder for every possible encoder (for now they have have the same parameter values)
+    for i in range(num_encoders):
+        # suffix for additional encoders
+        if i == 0: suff = ""
+        else: suff = str(i+1)
+
+        # embedding
+        params = get_layer_param('embedding')(options, params, options['n_words_src'],
+                                              options['dim_per_factor'], options['factors'], suffix=''+suff)
+
+        if i == 0:
+            if not options['tie_encoder_decoder_embeddings']:
+                params = get_layer_param('embedding')(options, params, options['n_words'],
+                                                      options['dim_word'], suffix='_dec')
+
+        # encoder: bidirectional RNN: same for single and multi-source
+        params = get_layer_param(options['encoder'])(options, params,
+                                                  prefix='encoder'+suff,
+                                                  nin=options['dim_word'],
+                                                  dim=options['dim'],
+                                                  recurrence_transition_depth=options['enc_recurrence_transition_depth'])
+        params = get_layer_param(options['encoder'])(options, params,
+                                                  prefix='encoder_r'+suff,
+                                                  nin=options['dim_word'],
+                                                  dim=options['dim'],
+                                                  recurrence_transition_depth=options['enc_recurrence_transition_depth'])
+
+        if options['enc_depth'] > 1:
+            for level in range(2, options['enc_depth'] + 1):
+                prefix_f = pp('encoder', level)+suff
+                prefix_r = pp('encoder_r', level)+suff
+
+                if level <= options['enc_depth_bidirectional']:
+                    params = get_layer_param(options['encoder'])(options, params,
+                                                                 prefix=prefix_f+suff,
+                                                                 nin=options['dim'],
+                                                                 dim=options['dim'],
+                                                                 recurrence_transition_depth=options['enc_recurrence_transition_depth'])
+                    params = get_layer_param(options['encoder'])(options, params,
+                                                                 prefix=prefix_r+suff,
+                                                                 nin=options['dim'],
+                                                                 dim=options['dim'],
+                                                                 recurrence_transition_depth=options['enc_recurrence_transition_depth'])
+                else:
+                    params = get_layer_param(options['encoder'])(options, params,
+                                                                 prefix=prefix_f+suff,
+                                                                 nin=options['dim'] * 2,
+                                                                 dim=options['dim'] * 2,
+                                                                 recurrence_transition_depth=options['enc_recurrence_transition_depth'])
+
+
+    # TODO: do I need 2 ctxdims?
+    # Context dimension
     ctxdim = 2 * options['dim']
 
     # init_state, init_cell
     params = get_layer_param('ff')(options, params, prefix='ff_state',
-                                nin=ctxdim, nout=options['dim'])
-    # decoder
-    params = get_layer_param(options['decoder'])(options, params,
-                                              prefix='decoder',
-                                              nin=options['dim_word'],
-                                              dim=options['dim'],
-                                              dimctx=ctxdim,
-                                              recurrence_transition_depth=options['dec_base_recurrence_transition_depth'])
+                                   nin=ctxdim, nout=options['dim'])
+
+
+    # --------------- DECODER ---------------
+    # use a multi-cGRU if multi-source is used
+    if options['multisource_type'] is not None:
+        params = get_layer_param('multi_gru_cond')(options,
+                                                params,
+                                                prefix='decoder',
+                                                nin=options['dim_word'],
+                                                dim=options['dim'],
+                                                dimctx=ctxdim,
+                                                recurrence_transition_depth=options['dec_base_recurrence_transition_depth'])
+    else:
+        params = get_layer_param(options['decoder'])(options, params,
+                                                prefix='decoder',
+                                                nin=options['dim_word'],
+                                                dim=options['dim'],
+                                                dimctx=ctxdim,
+                                                recurrence_transition_depth=options['dec_base_recurrence_transition_depth'])
 
     # deeper layers of the decoder
     if options['dec_depth'] > 1:
@@ -152,7 +187,7 @@ def init_params(options):
                                             dimctx=ctxdim,
                                             recurrence_transition_depth=options['dec_high_recurrence_transition_depth'])
 
-    # readout
+    # --------------- READOUT ---------------
     params = get_layer_param('ff')(options, params, prefix='ff_logit_lstm',
                                 nin=options['dim'], nout=options['dim_word'],
                                 ortho=False)
@@ -173,7 +208,7 @@ def init_params(options):
 
 
 # bidirectional RNN encoder: take input x (optionally with mask), and produce sequence of context vectors (ctx)
-def build_encoder(tparams, options, dropout, x_mask=None, sampling=False):
+def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, aux_x_mask=None, suffix=''):
 
     x = tensor.tensor3('x', dtype='int64')
     # source text; factors 1; length 5; batch size 10
@@ -190,10 +225,10 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False):
     n_samples = x.shape[2]
 
     # word embedding for forward rnn (source)
-    emb = get_layer_constr('embedding')(tparams, x, suffix='', factors= options['factors'])
+    emb = get_layer_constr('embedding')(tparams, x, suffix=suffix, factors= options['factors'])
 
     # word embedding for backward rnn (source)
-    embr = get_layer_constr('embedding')(tparams, xr, suffix='', factors= options['factors'])
+    embr = get_layer_constr('embedding')(tparams, xr, suffix=suffix, factors= options['factors'])
 
     if options['use_dropout']:
         source_dropout = dropout((n_timesteps, n_samples, 1), options['dropout_source'])
@@ -210,7 +245,7 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False):
 
     ## level 1
     proj = get_layer_constr(options['encoder'])(tparams, emb, options, dropout,
-                                                prefix='encoder',
+                                                prefix='encoder'+suffix,
                                                 mask=x_mask,
                                                 dropout_probability_below=options['dropout_embedding'],
                                                 dropout_probability_rec=options['dropout_hidden'],
@@ -218,7 +253,7 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False):
                                                 truncate_gradient=options['encoder_truncate_gradient'],
                                                 profile=profile)
     projr = get_layer_constr(options['encoder'])(tparams, embr, options, dropout,
-                                                 prefix='encoder_r',
+                                                 prefix='encoder_r'+suffix,
                                                  mask=xr_mask,
                                                  dropout_probability_below=options['dropout_embedding'],
                                                  dropout_probability_rec=options['dropout_hidden'],
@@ -228,15 +263,15 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False):
 
     ## bidirectional levels before merge
     for level in range(2, options['enc_depth_bidirectional'] + 1):
-        prefix_f = pp('encoder', level)
-        prefix_r = pp('encoder_r', level)
+        prefix_f = pp('encoder', level)+suffix
+        prefix_r = pp('encoder_r', level)+suffix
 
         # run forward on previous backward and backward on previous forward
         input_f = projr[0][::-1]
         input_r = proj[0][::-1]
 
         proj = get_layer_constr(options['encoder'])(tparams, input_f, options, dropout,
-                                                    prefix=prefix_f,
+                                                    prefix=prefix_f+suffix,
                                                     mask=x_mask,
                                                     dropout_probability_below=options['dropout_hidden'],
                                                     dropout_probability_rec=options['dropout_hidden'],
@@ -244,7 +279,7 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False):
                                                     truncate_gradient=options['encoder_truncate_gradient'],
                                                     profile=profile)
         projr = get_layer_constr(options['encoder'])(tparams, input_r, options, dropout,
-                                                     prefix=prefix_r,
+                                                     prefix=prefix_r+suffix,
                                                      mask=xr_mask,
                                                      dropout_probability_below=options['dropout_hidden'],
                                                      dropout_probability_rec=options['dropout_hidden'],
@@ -264,7 +299,7 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False):
     for level in range(options['enc_depth_bidirectional'] + 1, options['enc_depth'] + 1):
 
         ctx += get_layer_constr(options['encoder'])(tparams, ctx, options, dropout,
-                                                   prefix=pp('encoder', level),
+                                                   prefix=pp('encoder', level)+suffix,
                                                    mask=x_mask,
                                                    dropout_probability_below=options['dropout_hidden'],
                                                    dropout_probability_rec=options['dropout_hidden'],
@@ -276,7 +311,8 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False):
 
 
 # RNN decoder (including embedding and feedforward layer before output)
-def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_mask=None, sampling=False, pctx_=None, shared_vars=None):
+def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_mask=None,
+                  sampling=False, pctx_=None, shared_vars=None, aux_x_mask=None, aux_ctx=None, pctx2_=None):
     opt_ret = dict()
 
     # tell RNN whether to advance just one step at a time (for sampling),
@@ -314,7 +350,23 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
         emb = emb_shifted
 
     # decoder - pass through the decoder conditional gru with attention
-    proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
+    if options['multisource_type'] is not None:
+        print('should be doing multi gru cond')
+        proj = get_layer_constr('multi_gru_cond')(tparams, emb, options, dropout,
+                                             prefix='decoder',
+                                             mask=y_mask, contexts=[ctx, aux_ctx],
+                                             context_masks=[x_mask, aux_x_mask],
+                                             pctxs=[pctx_, pctx2_],
+                                             one_step=one_step,
+                                             init_state=init_state[0],
+                                             recurrence_transition_depth=options['dec_base_recurrence_transition_depth'],
+                                             dropout_probability_below=options['dropout_embedding'],
+                                             dropout_probability_ctx=options['dropout_hidden'],
+                                             dropout_probability_rec=options['dropout_hidden'],
+                                             truncate_gradient=options['decoder_truncate_gradient'],
+                                             profile=profile)
+    else:
+        proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
                                             prefix='decoder',
                                             mask=y_mask, context=ctx,
                                             context_mask=x_mask,
@@ -335,13 +387,17 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     # weights (alignment matrix)
     opt_ret['dec_alphas'] = proj[2]
+    if options['multisource_type'] is not None:
+        opt_ret['dec_alphas2'] = proj[3] # auxiliary
 
     # we return state of each layer
     if sampling:
+        print("ret state from next state")
         ret_state = [next_state.reshape((1, next_state.shape[0], next_state.shape[1]))]
     else:
         ret_state = None
 
+    # TODO: multisource
     if options['dec_depth'] > 1:
         for level in range(2, options['dec_depth'] + 1):
 
@@ -355,18 +411,18 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                 input_ = next_state
 
             out_state = get_layer_constr(options['decoder_deep'])(tparams, input_, options, dropout,
-                                              prefix=pp('decoder', level),
-                                              mask=y_mask,
-                                              context=ctx,
-                                              context_mask=x_mask,
-                                              pctx_=None, #TODO: we can speed up sampler by precomputing this
-                                              one_step=one_step,
-                                              init_state=init_state[level-1],
-                                              dropout_probability_below=options['dropout_hidden'],
-                                              dropout_probability_rec=options['dropout_hidden'],
-                                              recurrence_transition_depth=options['dec_high_recurrence_transition_depth'],
-                                              truncate_gradient=options['decoder_truncate_gradient'],
-                                              profile=profile)[0]
+                                          prefix=pp('decoder', level),
+                                          mask=y_mask,
+                                          context=ctx,
+                                          context_mask=x_mask,
+                                          pctx_=None, #TODO: we can speed up sampler by precomputing this
+                                          one_step=one_step,
+                                          init_state=init_state[level-1],
+                                          dropout_probability_below=options['dropout_hidden'],
+                                          dropout_probability_rec=options['dropout_hidden'],
+                                          recurrence_transition_depth=options['dec_high_recurrence_transition_depth'],
+                                          truncate_gradient=options['decoder_truncate_gradient'],
+                                          profile=profile)[0]
 
             if sampling:
                 ret_state.append(out_state.reshape((1, next_state.shape[0], next_state.shape[1])))
@@ -399,9 +455,10 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                             dropout_probability=options['dropout_hidden'],
                             prefix='ff_logit', activ='linear', W=logit_W, followed_by_softmax=True)
 
+
     return logit, opt_ret, ret_state
 
-# build a training model
+
 def build_model(tparams, options):
 
     trng = RandomStreams(1234)
@@ -409,10 +466,12 @@ def build_model(tparams, options):
     dropout = dropout_constr(options, use_noise, trng, sampling=False)
 
     x_mask = tensor.matrix('x_mask', dtype=floatX)
+    aux_x_mask = tensor.matrix('aux_x_mask', dtype=floatX)
     y = tensor.matrix('y', dtype='int64')
     y_mask = tensor.matrix('y_mask', dtype=floatX)
     # source text length 5; batch size 10
     x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
+    aux_x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
     # target text length 8; batch size 10
     y.tag.test_value = (numpy.random.rand(8, 10)*100).astype('int64')
     y_mask.tag.test_value = numpy.ones(shape=(8, 10)).astype(floatX)
@@ -443,6 +502,7 @@ def build_model(tparams, options):
                                                logit_shp[2]]))
 
     # cost
+    # TODO: modify for multisource
     y_flat = y.flatten()
     y_flat_idx = tensor.arange(y_flat.shape[0]) * options['n_words'] + y_flat
     cost = -tensor.log(probs.flatten()[y_flat_idx])
@@ -452,6 +512,187 @@ def build_model(tparams, options):
     #print "Print out in build_model()"
     #print opt_ret
     return trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost
+
+# to store relevant items for multiple encoders
+EncoderItems = namedtuple('EncoderItems', 'x_mask x ctx ctx_mean')
+
+# build a training model
+def build_multisource_model(tparams, options):
+
+    print("Building multisource model")
+
+    trng = RandomStreams(1234)
+    use_noise = theano.shared(numpy_floatX(0.))
+    dropout = dropout_constr(options, use_noise, trng, sampling=False)
+
+    # potentially multiple inputs, stored in 'encoders'
+    num_encoders = 1
+    if options["multisource_type"] is not None:
+        num_encoders += 1
+
+    # deal with outputs first
+    y = tensor.matrix('y', dtype='int64')
+    y_mask = tensor.matrix('y_mask', dtype=floatX)
+    # target text length 8; batch size 10
+    y.tag.test_value = (numpy.random.rand(8, 10) * 100).astype('int64')
+    y_mask.tag.test_value = numpy.ones(shape=(8, 10)).astype(floatX)
+
+    encoders=[]
+    # first one is always the main input
+    for i in range(num_encoders):
+        # suffix for additional encoders
+        if i==0: suff=""
+        else: suff=str(i+1)
+
+        x_mask = tensor.matrix('x_mask'+suff, dtype=floatX)
+        # source text length 5; batch size 10
+        x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
+        x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
+
+        # ------------ ENCODER ------------
+        x, ctx = build_encoder(tparams, options, dropout, x_mask, sampling=False, suffix=suff)
+        n_samples = x.shape[2]
+        # mean of the context (across time) will be used to initialize decoder rnn
+        ctx_mean = (ctx * x_mask[:, :, None]).sum(0) / x_mask.sum(0)[:, None]
+        # or you can use the last state of forward + backward encoder rnns
+        # ctx_mean = concatenate([proj[0][-1], projr[0][-1]], axis=proj[0].ndim-2)
+
+        # add these to encoders
+        encoders.append(EncoderItems(x_mask=x_mask, x=x, ctx=ctx, ctx_mean=ctx_mean))
+
+        #theano.printing.pydotprint(ctx, outfile="viz-ctx"+suff+".png", var_with_name_simple=True)
+
+
+    #------------ DECODER ------------
+    # initial decoder state
+    # just initialise with the main ctx_mean and don't use auxiliary for now
+    # todo: how to do a projection of concatenated means?
+    if options['multisource_type']=="att-concatenation":
+        ctx_mean = encoders[0].ctx_mean
+
+
+
+    init_state = get_layer_constr('ff')(tparams, ctx_mean, options, dropout,
+                                    dropout_probability=options['dropout_hidden'],
+                                    prefix='ff_state', activ='tanh')
+
+    # every decoder RNN layer gets its own copy of the init state
+    init_state = init_state.reshape([1, init_state.shape[0], init_state.shape[1]])
+    if options['dec_depth'] > 1:
+        init_state = tensor.tile(init_state, (options['dec_depth'], 1, 1))
+
+    # build decoder
+    logit, opt_ret, _ = build_decoder(tparams, options, y, encoders[0].ctx, init_state, dropout,
+                                      x_mask=encoders[0].x_mask, y_mask=y_mask, sampling=False,
+                                      aux_x_mask=encoders[1].x_mask, aux_ctx=encoders[1].ctx)
+
+    # ------------ OUTPUT LAYERS ------------
+    logit_shp = logit.shape
+    probs = tensor.nnet.softmax(logit.reshape([logit_shp[0]*logit_shp[1],
+                                               logit_shp[2]]))
+
+    # ------------ COST ------------
+    # TODO: need to to modify cost for multiple inputs?
+    y_flat = y.flatten()
+    y_flat_idx = tensor.arange(y_flat.shape[0]) * options['n_words'] + y_flat
+    cost = -tensor.log(probs.flatten()[y_flat_idx])
+    cost = cost.reshape([y.shape[0], y.shape[1]])
+    cost = (cost * y_mask).sum(0)
+
+    #print "Print out in build_model()"
+    print opt_ret
+
+    #theano.printing.pydotprint(cost, outfile="test_viz.png", var_with_name_simple=True)
+    #d3v.d3viz(cost, "/Users/rbawden/Documents/tools/nematus-multisource/test_viz.html")
+
+    return trng, use_noise, encoders, y, y_mask, opt_ret, cost
+
+
+# build a multi-sampler
+def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=False):
+
+    # potentially multiple inputs, stored in 'encoders'
+    num_encoders = 1
+    if options["multisource_type"] is not None:
+        num_encoders += 1
+
+    dropout = dropout_constr(options, use_noise, trng, sampling=True)
+
+    encoders = []
+    # first one is always the main input
+    for i in range(num_encoders):
+
+        x, ctx = build_encoder(tparams, options, dropout, x_mask=None, sampling=True)
+        n_samples = x.shape[2]
+
+        # get the input for decoder rnn initializer mlp
+        ctx_mean = ctx.mean(0)
+        # ctx_mean = concatenate([proj[0][-1],projr[0][-1]], axis=proj[0].ndim-2)
+
+        encoders.append(EncoderItems(x=x, ctx=ctx, ctx_mean=ctx_mean, x_mask=None))
+
+    if options['multisource_type'] == "att-concatenation":
+        print("concatenate means")
+        # TODO: change to concatenate?
+        ctx_mean = sum([encoders[0].ctx_mean, encoders[1].ctx_mean])
+        # project to same space
+        # TODO: different params??
+        #W_proj_sampler = tensor.vector('Wproj_sampler', dtype='int64')
+        #b_proj_sampler = tensor.vector('Wproj_sampler', dtype='int64')
+        #ctx_mean = ctx_mean * W_proj_sampler + b_proj_sampler
+
+
+    init_state = get_layer_constr('ff')(tparams, ctx_mean, options, dropout,
+                                        dropout_probability=options['dropout_hidden'],
+                                        prefix='ff_state', activ='tanh')
+
+    print("in multi sampler after ff layer")
+
+    # every decoder RNN layer gets its own copy of the init state
+    init_state = init_state.reshape([1, init_state.shape[0], init_state.shape[1]])
+    if options['dec_depth'] > 1:
+        init_state = tensor.tile(init_state, (options['dec_depth'], 1, 1))
+
+    logging.info('Building f_init...')
+    outs = [init_state, encoders[0].ctx, encoders[1].ctx]
+    f_init = theano.function([encoders[0].x, encoders[1].x], outs, name='f_init', profile=profile)
+    logging.info('Done')
+
+    # x: 1 x 1
+    y = tensor.vector('y_sampler', dtype='int64')
+    y.tag.test_value = -1 * numpy.ones((10,)).astype('int64')
+    init_state_old = init_state
+    init_state = tensor.tensor3('init_state', dtype=floatX)
+    if theano.config.compute_test_value != 'off':
+        init_state.tag.test_value = numpy.random.rand(*init_state_old.tag.test_value.shape).astype(floatX)
+
+    logit, opt_ret, ret_state = build_decoder(tparams, options, y, encoders[0].ctx, init_state, dropout,
+                                              x_mask=None, y_mask=None, sampling=True,
+                                              aux_x_mask=None, aux_ctx=encoders[1].ctx)
+
+    # compute the softmax probability
+    next_probs = tensor.nnet.softmax(logit)
+
+    # sample from softmax distribution to get the sample
+    next_sample = trng.multinomial(pvals=next_probs).argmax(1)
+
+    # compile a function to do the whole thing above, next word probability,
+    # sampled word for the next target, next hidden state to be used
+
+    logging.info('Building f_next..')
+    inps = [y, encoders[0].ctx, encoders[1].ctx, init_state] #encoders[1].ctx,
+    outs = [next_probs, next_sample, ret_state]
+
+    if return_alignment:
+        # TODO: 2nd alignment?
+        outs.append(opt_ret['dec_alphas'])
+        outs.append(opt_ret['dec_alphas2'])
+
+    # TODO: bugs after here...
+    f_next = theano.function(inps, outs, name='f_next', profile=profile)
+    logging.info('Done')
+
+    return f_init, f_next
 
 
 # build a sampler
@@ -993,9 +1234,19 @@ def train(dim_word=512,  # word vector dimensionality
           decoder_truncate_gradient=-1, # Truncate BPTT gradients in the decoder to this value. Use -1 for no truncation
           layer_normalisation=False, # layer normalisation https://arxiv.org/abs/1607.06450
           weight_normalisation=False, # normalize weights
+          aux_datasets=[  # path to training datasets (source and target)
+              None,
+              None], # auxiliary dataset for secondary input (multisource)
+          aux_valid_datasets=[None,  # path to validation datasets (source and target)
+                             None], # auxiliary validation dataset for secondary input (multisource)
+          aux_dictionaries=[
+              # path to dictionaries (json file created with ../data/build_dictionary.py). One dictionary per input factor; last dictionary is target-side dictionary.
+              None,
+              None], # auxiliary dictionaries for secondary input (multisource)
+          multisource_type=None # multisource combination type
     ):
 
-    # Model options
+    # ---------------- Model options ----------------
     model_options = OrderedDict(sorted(locals().copy().items()))
 
     if model_options['dim_per_factor'] == None:
@@ -1019,7 +1270,20 @@ def train(dim_word=512,  # word vector dimensionality
     # first layer is always bidirectional; make sure people don't forget to increase enc_depth as well
     assert(model_options['enc_depth_bidirectional'] >= 1 and model_options['enc_depth_bidirectional'] <= model_options['enc_depth'])
 
-    # load dictionaries and invert them
+    # ---------------- Sanity check on multisource inputs ---------------
+    # all sets must be specified
+    if model_options["multisource_type"] is not None:
+        assert(aux_datasets is not None)
+        assert(aux_datasets[0]is not None)
+        assert(aux_datasets[1] is not None)
+
+
+    # if only one set of dictionaries used, reuse them for the auxiliary data too
+    if aux_datasets != [None, None] and aux_dictionaries == [None, None]:
+        aux_dictionaries = dictionaries
+
+
+    # ---------------- load dictionaries and invert them ----------------
     worddicts = [None] * len(dictionaries)
     worddicts_r = [None] * len(dictionaries)
     for ii, dd in enumerate(dictionaries):
@@ -1047,7 +1311,7 @@ def train(dim_word=512,  # word vector dimensionality
         logging.info('Running in MRT mode, minibatch size set to 1 sentence')
         batch_size = 1
 
-    # initialize training progress
+    # ---------------- Initialise training progress ---------------
     training_progress = TrainingProgress()
     best_p = None
     best_opt_p = None
@@ -1071,6 +1335,7 @@ def train(dim_word=512,  # word vector dimensionality
     if training_progress.anneal_restarts_done > 0:
         lrate *= anneal_decay**training_progress.anneal_restarts_done
 
+    # ---------------- Loading data ---------------
     logging.info('Loading data')
     if use_domain_interpolation:
         logging.info('Using domain interpolation with initial ratio %s, final ratio %s, increase rate %s' % (training_progress.domain_interpolation_cur, domain_interpolation_max, domain_interpolation_inc))
@@ -1086,7 +1351,10 @@ def train(dim_word=512,  # word vector dimensionality
                          indomain_target=domain_interpolation_indomain_datasets[1],
                          interpolation_rate=training_progress.domain_interpolation_cur,
                          use_factor=(factors > 1),
-                         maxibatch_size=maxibatch_size)
+                         maxibatch_size=maxibatch_size,
+                         aux_datasets=aux_datasets,
+                         aux_dictionaries=aux_dictionaries,
+                         aux_valid_datasets=aux_valid_datasets)
     else:
         train = TextIterator(datasets[0], datasets[1],
                          dictionaries[:-1], dictionaries[-1],
@@ -1097,7 +1365,9 @@ def train(dim_word=512,  # word vector dimensionality
                          shuffle_each_epoch=shuffle_each_epoch,
                          sort_by_length=sort_by_length,
                          use_factor=(factors > 1),
-                         maxibatch_size=maxibatch_size)
+                         maxibatch_size=maxibatch_size,
+                         aux_datasets=aux_datasets,
+                         aux_dictionaries=aux_dictionaries)
 
     if valid_datasets and validFreq:
         valid = TextIterator(valid_datasets[0], valid_datasets[1],
@@ -1105,13 +1375,18 @@ def train(dim_word=512,  # word vector dimensionality
                             n_words_source=n_words_src, n_words_target=n_words,
                             batch_size=valid_batch_size,
                             use_factor=(factors>1),
-                            maxlen=maxlen)
+                            maxlen=maxlen,
+                            aux_datasets=aux_datasets,
+                            aux_dictionaries=aux_dictionaries)
     else:
         valid = None
 
     comp_start = time.time()
 
     logging.info('Building model')
+
+    # ---------------- Initialise parameters ----------------
+    # TODO: Modify for multisource XXX
     params = init_params(model_options)
 
     optimizer_params = {}
@@ -1130,26 +1405,34 @@ def train(dim_word=512,  # word vector dimensionality
         logging.info('Initializing model parameters from prior')
         params = load_params(prior_model, params)
 
-    # load prior model if specified
+    # ---------------- load prior model if specified ----------------
     if prior_model:
         logging.info('Loading prior model parameters')
         params = load_params(prior_model, params, with_prefix='prior_')
 
     tparams = init_theano_params(params)
 
-    trng, use_noise, \
-        x, x_mask, y, y_mask, \
-        opt_ret, \
-        cost = \
-        build_model(tparams, model_options)
+    # ---------------- build model ----------------
+    if multisource_type is not None:
+        print("Doing multisource. About to build model.")
+        trng, use_noise, encoders, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
 
-    inps = [x, x_mask, y, y_mask]
+        # TODO: add auxiliary inputs ???
+        inps = [encoders[0].x, encoders[0].x_mask, encoders[1].x, encoders[1].x_mask, y, y_mask]
+    else:
+        trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
+        inps = [x, x_mask, y, y_mask]
 
+    # ---------------- build model ----------------
     if validFreq or sampleFreq:
         logging.info('Building sampler')
-        f_init, f_next = build_sampler(tparams, model_options, use_noise, trng)
+        if multisource_type is not None:
+            f_init, f_next = build_multi_sampler(tparams, model_options, use_noise, trng)
+        else:
+            f_init, f_next = build_sampler(tparams, model_options, use_noise, trng)
     if model_options['objective'] == 'MRT':
         logging.info('Building MRT sampler')
+        # TODO: multisource
         f_sampler = build_full_sampler(tparams, model_options, use_noise, trng)
 
     # before any regularizer
@@ -1186,17 +1469,21 @@ def train(dim_word=512,  # word vector dimensionality
             if kk.startswith('prior_'):
                 continue
             init_value = tparams['prior_' + kk]
-            weight_map_decay += ((vv -init_value) ** 2).sum()
+            weight_map_decay += ((vv - init_value) ** 2).sum()
         weight_map_decay *= map_decay_c
         cost += weight_map_decay
 
     updated_params = OrderedDict(tparams)
+    # TODO: check updated params
 
     # don't update prior model parameters
     if prior_model:
         updated_params = OrderedDict([(key,value) for (key,value) in updated_params.iteritems() if not key.startswith('prior_')])
 
+    #theano.printing.pydotprint(cost, outfile="viz-cost"+".png", var_with_name_simple=True)
+
     logging.info('Computing gradient...')
+    print(updated_params)
     grads = tensor.grad(cost, wrt=itemlist(updated_params))
     logging.info('Done')
 
@@ -1216,10 +1503,11 @@ def train(dim_word=512,  # word vector dimensionality
     lr = tensor.scalar(name='lr')
 
     logging.info('Building optimizers...')
+    # TODO: modify for multisource?
     f_update, optimizer_tparams = eval(optimizer)(lr, updated_params,
-                                                                 grads, inps, cost,
-                                                                 profile=profile,
-                                                                 optimizer_params=optimizer_params)
+                                                  grads, inps, cost,
+                                                  profile=profile,
+                                                  optimizer_params=optimizer_params)
     logging.info('Done')
 
     logging.info('Total compilation time: {0:.1f}s'.format(time.time() - comp_start))
@@ -1339,6 +1627,7 @@ def train(dim_word=512,  # word vector dimensionality
                         samples = [y_s] + [s for s in samples if s != y_s]
 
                     # create mini-batch with masking
+                    # TODO: add multisource
                     x, x_mask, y, y_mask = prepare_data([x_s for _ in xrange(len(samples))], samples,
                                                                     maxlen=None,
                                                                     n_factors=factors,
@@ -1737,6 +2026,16 @@ if __name__ == '__main__':
                          help="interpolation increment to be applied each time patience runs out, until maximum amount of interpolation is reached (default: %(default)s)")
     domain_interpolation.add_argument('--domain_interpolation_indomain_datasets', type=str, metavar='PATH', nargs=2,
                          help="indomain parallel training corpus (source and target)")
+
+
+    multi = parser.add_argument_group('multiple source input parameters')
+    multi.add_argument('--aux_datasets', type=str, metavar='PATH', nargs=2,
+                      help="auxiliary parallel training corpus (source and target)")
+    multi.add_argument('--aux_dictionaries', type=str, metavar='PATH', nargs="+", default=[None, None],
+                      help="auxiliary network vocabularies (one per source factor, plus target vocabulary)")
+    multi.add_argument('--aux_valid_datasets', type=str, metavar='PATH', nargs=2, default=[None, None],
+                            help="auxiliary parallel validation corpus (source and target)")
+    multi.add_argument('--multisource_type', choices=("att-concatenation", "att-hierarchical"), default=None)
 
     args = parser.parse_args()
 
