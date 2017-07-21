@@ -92,8 +92,6 @@ def init_params(options):
         num_encoders += 1
 
 
-
-
     # initialise encoder for every possible encoder (for now they have have the same parameter values)
     for i in range(num_encoders):
         # suffix for additional encoders
@@ -162,7 +160,7 @@ def init_params(options):
                                                 prefix='decoder',
                                                 nin=options['dim_word'],
                                                 dim=options['dim'],
-                                                dimctx=ctxdim,
+                                                dimctx=ctxdim, dimctx2=ctxdim,
                                                 recurrence_transition_depth=options['dec_base_recurrence_transition_depth'])
     else:
         params = get_layer_param(options['decoder'])(options, params,
@@ -210,7 +208,7 @@ def init_params(options):
 # bidirectional RNN encoder: take input x (optionally with mask), and produce sequence of context vectors (ctx)
 def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, aux_x_mask=None, suffix=''):
 
-    x = tensor.tensor3('x', dtype='int64')
+    x = tensor.tensor3('x'+suffix, dtype='int64')
     # source text; factors 1; length 5; batch size 10
     x.tag.test_value = (numpy.random.rand(1, 5, 10)*100).astype('int64')
 
@@ -366,6 +364,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                              truncate_gradient=options['decoder_truncate_gradient'],
                                              profile=profile)
     else:
+        print("is not doing any multi stuff here")
         proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
                                             prefix='decoder',
                                             mask=y_mask, context=ctx,
@@ -409,7 +408,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                 input_ = tensor.concatenate([next_state, ctxs], axis=axis)
             else:
                 input_ = next_state
-
+            print('some deep stuff')
             out_state = get_layer_constr(options['decoder_deep'])(tparams, input_, options, dropout,
                                           prefix=pp('decoder', level),
                                           mask=y_mask,
@@ -537,28 +536,43 @@ def build_multisource_model(tparams, options):
     y.tag.test_value = (numpy.random.rand(8, 10) * 100).astype('int64')
     y_mask.tag.test_value = numpy.ones(shape=(8, 10)).astype(floatX)
 
-    encoders=[]
+    #encoders=[]
     # first one is always the main input
-    for i in range(num_encoders):
-        # suffix for additional encoders
-        if i==0: suff=""
-        else: suff=str(i+1)
+    #for i in range(num_encoders):
+    #    # suffix for additional encoders
+    #    if i==0: suff=""
+    #    else: suff=str(i+1)
 
-        x_mask = tensor.matrix('x_mask'+suff, dtype=floatX)
-        # source text length 5; batch size 10
-        x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
-        x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
+    x_mask = tensor.matrix('x_mask', dtype=floatX)
+    # source text length 5; batch size 10
+    x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
+    x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
 
-        # ------------ ENCODER ------------
-        x, ctx = build_encoder(tparams, options, dropout, x_mask, sampling=False, suffix=suff)
-        n_samples = x.shape[2]
-        # mean of the context (across time) will be used to initialize decoder rnn
-        ctx_mean = (ctx * x_mask[:, :, None]).sum(0) / x_mask.sum(0)[:, None]
-        # or you can use the last state of forward + backward encoder rnns
-        # ctx_mean = concatenate([proj[0][-1], projr[0][-1]], axis=proj[0].ndim-2)
+    # ------------ ENCODER ------------
+    x, ctx = build_encoder(tparams, options, dropout, x_mask, sampling=False, suffix="")
+    n_samples = x.shape[2]
+    # mean of the context (across time) will be used to initialize decoder rnn
+    ctx_mean = (ctx * x_mask[:, :, None]).sum(0) / x_mask.sum(0)[:, None]
+    # or you can use the last state of forward + backward encoder rnns
+    # ctx_mean = concatenate([proj[0][-1], projr[0][-1]], axis=proj[0].ndim-2)
+
+    # secondary input and encoder
+
+    x_mask2 = tensor.matrix('x_mask', dtype=floatX)
+    # source text length 5; batch size 10
+    x_mask2.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
+    x_mask2.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
+
+    # ------------ ENCODER ------------
+    x2, ctx2 = build_encoder(tparams, options, dropout, x_mask2, sampling=False, suffix="2")
+    n_samples = x2.shape[2]
+    # mean of the context (across time) will be used to initialize decoder rnn
+    ctx_mean2 = (ctx2 * x_mask2[:, :, None]).sum(0) / x_mask2.sum(0)[:, None]
+    # or you can use the last state of forward + backward encoder rnns
+    # ctx_mean = concatenate([proj[0][-1], projr[0][-1]], axis=proj[0].ndim-2)
 
         # add these to encoders
-        encoders.append(EncoderItems(x_mask=x_mask, x=x, ctx=ctx, ctx_mean=ctx_mean))
+        #encoders.append(EncoderItems(x_mask=x_mask, x=x, ctx=ctx, ctx_mean=ctx_mean))
 
         #theano.printing.pydotprint(ctx, outfile="viz-ctx"+suff+".png", var_with_name_simple=True)
 
@@ -568,11 +582,12 @@ def build_multisource_model(tparams, options):
     # just initialise with the main ctx_mean and don't use auxiliary for now
     # todo: how to do a projection of concatenated means?
     if options['multisource_type']=="att-concatenation":
-        ctx_mean = encoders[0].ctx_mean
+        # TODO: do concatenation and not sum
+        ctx_mean_combo = theano.tensor.sum([ctx_mean, ctx_mean2], axis=1)
 
 
 
-    init_state = get_layer_constr('ff')(tparams, ctx_mean, options, dropout,
+    init_state = get_layer_constr('ff')(tparams, ctx_mean_combo, options, dropout,
                                     dropout_probability=options['dropout_hidden'],
                                     prefix='ff_state', activ='tanh')
 
@@ -582,9 +597,9 @@ def build_multisource_model(tparams, options):
         init_state = tensor.tile(init_state, (options['dec_depth'], 1, 1))
 
     # build decoder
-    logit, opt_ret, _ = build_decoder(tparams, options, y, encoders[0].ctx, init_state, dropout,
-                                      x_mask=encoders[0].x_mask, y_mask=y_mask, sampling=False,
-                                      aux_x_mask=encoders[1].x_mask, aux_ctx=encoders[1].ctx)
+    logit, opt_ret, _ = build_decoder(tparams, options, y, ctx, init_state, dropout,
+                                      x_mask=x_mask, y_mask=y_mask, sampling=False,
+                                      aux_x_mask=x_mask2, aux_ctx=ctx2)
 
     # ------------ OUTPUT LAYERS ------------
     logit_shp = logit.shape
@@ -605,7 +620,7 @@ def build_multisource_model(tparams, options):
     #theano.printing.pydotprint(cost, outfile="test_viz.png", var_with_name_simple=True)
     #d3v.d3viz(cost, "/Users/rbawden/Documents/tools/nematus-multisource/test_viz.html")
 
-    return trng, use_noise, encoders, y, y_mask, opt_ret, cost
+    return trng, use_noise, x, x_mask, x2, x_mask2, y, y_mask, opt_ret, cost
 
 
 # build a multi-sampler
@@ -633,7 +648,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
 
     if options['multisource_type'] == "att-concatenation":
         print("concatenate means")
-        # TODO: change to concatenate?
+        # TODO: change to concatenate? just sum for now
         ctx_mean = sum([encoders[0].ctx_mean, encoders[1].ctx_mean])
         # project to same space
         # TODO: different params??
@@ -658,6 +673,8 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     f_init = theano.function([encoders[0].x, encoders[1].x], outs, name='f_init', profile=profile)
     logging.info('Done')
 
+
+
     # x: 1 x 1
     y = tensor.vector('y_sampler', dtype='int64')
     y.tag.test_value = -1 * numpy.ones((10,)).astype('int64')
@@ -679,8 +696,8 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     # compile a function to do the whole thing above, next word probability,
     # sampled word for the next target, next hidden state to be used
 
-    logging.info('Building f_next..')
-    inps = [y, encoders[0].ctx, encoders[1].ctx, init_state] #encoders[1].ctx,
+    logging.info('Building f_next...')
+    inps = [y, encoders[0].ctx, encoders[1].ctx, init_state]
     outs = [next_probs, next_sample, ret_state]
 
     if return_alignment:
@@ -720,6 +737,8 @@ def build_sampler(tparams, options, use_noise, trng, return_alignment=False):
     outs = [init_state, ctx]
     f_init = theano.function([x], outs, name='f_init', profile=profile)
     logging.info('Done')
+
+
 
     # x: 1 x 1
     y = tensor.vector('y_sampler', dtype='int64')
@@ -791,6 +810,8 @@ def mrt_cost(cost, y_mask, options):
 
 # build a sampler that produces samples in one theano function
 def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
+
+    print("Building full sampler")
 
     dropout = dropout_constr(options, use_noise, trng, sampling=True)
 
@@ -1234,15 +1255,9 @@ def train(dim_word=512,  # word vector dimensionality
           decoder_truncate_gradient=-1, # Truncate BPTT gradients in the decoder to this value. Use -1 for no truncation
           layer_normalisation=False, # layer normalisation https://arxiv.org/abs/1607.06450
           weight_normalisation=False, # normalize weights
-          aux_datasets=[  # path to training datasets (source and target)
-              None,
-              None], # auxiliary dataset for secondary input (multisource)
-          aux_valid_datasets=[None,  # path to validation datasets (source and target)
-                             None], # auxiliary validation dataset for secondary input (multisource)
-          aux_dictionaries=[
-              # path to dictionaries (json file created with ../data/build_dictionary.py). One dictionary per input factor; last dictionary is target-side dictionary.
-              None,
-              None], # auxiliary dictionaries for secondary input (multisource)
+          aux_source=None,  # path to training datasets (source)
+          aux_valid_source=None, # auxiliary validation dataset for secondary input (multisource)
+          aux_source_dicts=[None], # auxiliary dictionaries for secondary input (multisource)
           multisource_type=None # multisource combination type
     ):
 
@@ -1273,14 +1288,12 @@ def train(dim_word=512,  # word vector dimensionality
     # ---------------- Sanity check on multisource inputs ---------------
     # all sets must be specified
     if model_options["multisource_type"] is not None:
-        assert(aux_datasets is not None)
-        assert(aux_datasets[0]is not None)
-        assert(aux_datasets[1] is not None)
+        assert(aux_source is not None)
 
 
     # if only one set of dictionaries used, reuse them for the auxiliary data too
-    if aux_datasets != [None, None] and aux_dictionaries == [None, None]:
-        aux_dictionaries = dictionaries
+    if aux_source != None and aux_source == [None]:
+        aux_source_dicts = dictionaries[:-1]
 
 
     # ---------------- load dictionaries and invert them ----------------
@@ -1351,10 +1364,7 @@ def train(dim_word=512,  # word vector dimensionality
                          indomain_target=domain_interpolation_indomain_datasets[1],
                          interpolation_rate=training_progress.domain_interpolation_cur,
                          use_factor=(factors > 1),
-                         maxibatch_size=maxibatch_size,
-                         aux_datasets=aux_datasets,
-                         aux_dictionaries=aux_dictionaries,
-                         aux_valid_datasets=aux_valid_datasets)
+                         maxibatch_size=maxibatch_size)
     else:
         train = TextIterator(datasets[0], datasets[1],
                          dictionaries[:-1], dictionaries[-1],
@@ -1366,11 +1376,11 @@ def train(dim_word=512,  # word vector dimensionality
                          sort_by_length=sort_by_length,
                          use_factor=(factors > 1),
                          maxibatch_size=maxibatch_size,
-                         aux_datasets=aux_datasets,
-                         aux_dictionaries=aux_dictionaries)
+                         aux_source = aux_source,
+                         aux_source_dicts=aux_source_dicts)
 
     if valid_datasets and validFreq:
-        valid = TextIterator(valid_datasets[0], valid_datasets[1],
+        valid = TextIterator(valid_datasets[0], valid_datasets[1], valid_datasets[2],
                             dictionaries[:-1], dictionaries[-1],
                             n_words_source=n_words_src, n_words_target=n_words,
                             batch_size=valid_batch_size,
@@ -1415,10 +1425,10 @@ def train(dim_word=512,  # word vector dimensionality
     # ---------------- build model ----------------
     if multisource_type is not None:
         print("Doing multisource. About to build model.")
-        trng, use_noise, encoders, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
+        trng, use_noise, x, x_mask, x2, x_mask2, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
 
         # TODO: add auxiliary inputs ???
-        inps = [encoders[0].x, encoders[0].x_mask, encoders[1].x, encoders[1].x_mask, y, y_mask]
+        inps = [x, x_mask, x2, x_mask2, y, y_mask]
     else:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
         inps = [x, x_mask, y, y_mask]
@@ -1540,7 +1550,7 @@ def train(dim_word=512,  # word vector dimensionality
     for training_progress.eidx in xrange(training_progress.eidx, max_epochs):
         n_samples = 0
 
-        for x, y in train:
+        for x, y, aux_x in train:
             training_progress.uidx += 1
             use_noise.set_value(1.)
 
@@ -2029,12 +2039,11 @@ if __name__ == '__main__':
 
 
     multi = parser.add_argument_group('multiple source input parameters')
-    multi.add_argument('--aux_datasets', type=str, metavar='PATH', nargs=2,
-                      help="auxiliary parallel training corpus (source and target)")
-    multi.add_argument('--aux_dictionaries', type=str, metavar='PATH', nargs="+", default=[None, None],
-                      help="auxiliary network vocabularies (one per source factor, plus target vocabulary)")
-    multi.add_argument('--aux_valid_datasets', type=str, metavar='PATH', nargs=2, default=[None, None],
-                            help="auxiliary parallel validation corpus (source and target)")
+    multi.add_argument('--aux_source', type=str, metavar='PATH', help="auxiliary parallel training corpus (source)")
+    multi.add_argument('--aux_source_dicts', type=str, metavar='PATH', nargs="+", default=[],
+                      help="auxiliary network vocabularies (one per source factor)")
+    multi.add_argument('--aux_valid_source', type=str, metavar='PATH', default=None,
+                            help="auxiliary parallel validation corpus (source)")
     multi.add_argument('--multisource_type', choices=("att-concatenation", "att-hierarchical"), default=None)
 
     args = parser.parse_args()

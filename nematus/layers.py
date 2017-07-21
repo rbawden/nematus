@@ -32,7 +32,7 @@ def dropout_constr(options, use_noise, trng, sampling):
     """This constructor takes care of the fact that we want different
     behaviour in training and sampling, and keeps backward compatibility:
     on older versions, activations need to be rescaled at test time;
-    on newer veresions, they are rescaled at training time.
+    on newer vereions, they are rescaled at training time.
     """
 
     # if dropout is off, or we don't need it because we're sampling, multiply by 1
@@ -468,52 +468,56 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     params[pp(prefix, 'c_tt')] = c_att
 
     # multisource (so an auxiliary attention mechanism)
-    if options["multisource_type"] is not None:
-        # auxiliary attention: combined -> hidden
-        W_comb_att2 = norm_weight(dim, dimctx2)
-        params[pp(prefix, 'W_comb_att2')] = W_comb_att2
+    for i in range(2):
+        if i==0: suff=""
+        else: suff=str(i+1)
 
-        # auxiliary attention: context -> hidden
-        Wc_att2 = norm_weight(dimctx2)
-        params[pp(prefix, 'Wc_att2')] = Wc_att2
+        # attention: combined -> hidden
+        W_comb_att = norm_weight(dim, dimctx)
+        params[pp(prefix, 'W_comb_att'+suff)] = W_comb_att
+
+        # attention: context -> hidden
+        Wc_att = norm_weight(dimctx)
+        params[pp(prefix, 'Wc_att'+suff)] = Wc_att
 
         # attention: hidden bias
-        b_att2 = numpy.zeros((dimctx2,)).astype(floatX)
-        params[pp(prefix, 'b_att2')] = b_att2
+        b_att = numpy.zeros((dimctx,)).astype(floatX)
+        params[pp(prefix, 'b_att'+suff)] = b_att
 
-        # auxiliary attention
-        U_att2 = norm_weight(dimctx2, 1)
-        params[pp(prefix, 'U_att2')] = U_att2
-        c_att2 = numpy.zeros((1,)).astype(floatX)
-        params[pp(prefix, 'c_tt2')] = c_att2
+        # attention:
+        U_att = norm_weight(dimctx, 1)
+        params[pp(prefix, 'U_att'+suff)] = U_att
+        c_att = numpy.zeros((1,)).astype(floatX)
+        params[pp(prefix, 'c_tt'+suff)] = c_att
 
+        # TODO: add multisource
+        if options['layer_normalisation']:
+            # layer-normalization parameters
+            params[pp(prefix, 'W_lnb'+suff)] = scale_add * numpy.ones((2 * dim)).astype(floatX)
+            params[pp(prefix, 'W_lns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+            params[pp(prefix, 'U_lnb'+suff)] = scale_add * numpy.ones((2 * dim)).astype(floatX)
+            params[pp(prefix, 'U_lns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+            params[pp(prefix, 'Wx_lnb'+suff)] = scale_add * numpy.ones((1 * dim)).astype(floatX)
+            params[pp(prefix, 'Wx_lns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+            params[pp(prefix, 'Ux_lnb'+suff)] = scale_add * numpy.ones((1 * dim)).astype(floatX)
+            params[pp(prefix, 'Ux_lns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+            params[pp(prefix, 'W_comb_att_lnb'+suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'W_comb_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'Wc_att_lnb'+suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'Wc_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+        if options['weight_normalisation'] :
+            params[pp(prefix, 'W_wns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+            params[pp(prefix, 'U_wns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+            params[pp(prefix, 'Wx_wns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+            params[pp(prefix, 'Ux_wns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+            params[pp(prefix, 'W_comb_att_wns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'Wc_att_wns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'U_att_wns'+suff)] = scale_mul * numpy.ones((1 * 1)).astype(floatX)
+
+    if options["multisource_type"]=="att-concatenation":
         # linear projection
         params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx+dimctx2, dimctx, scale=0.01)
         params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx,)).astype(floatX)
-
-    # TODO: add multisource
-    if options['layer_normalisation']:
-        # layer-normalization parameters
-        params[pp(prefix, 'W_lnb')] = scale_add * numpy.ones((2 * dim)).astype(floatX)
-        params[pp(prefix, 'W_lns')] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-        params[pp(prefix, 'U_lnb')] = scale_add * numpy.ones((2 * dim)).astype(floatX)
-        params[pp(prefix, 'U_lns')] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-        params[pp(prefix, 'Wx_lnb')] = scale_add * numpy.ones((1 * dim)).astype(floatX)
-        params[pp(prefix, 'Wx_lns')] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
-        params[pp(prefix, 'Ux_lnb')] = scale_add * numpy.ones((1 * dim)).astype(floatX)
-        params[pp(prefix, 'Ux_lns')] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
-        params[pp(prefix, 'W_comb_att_lnb')] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
-        params[pp(prefix, 'W_comb_att_lns')] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-        params[pp(prefix, 'Wc_att_lnb')] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
-        params[pp(prefix, 'Wc_att_lns')] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-    if options['weight_normalisation']:
-        params[pp(prefix, 'W_wns')] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-        params[pp(prefix, 'U_wns')] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-        params[pp(prefix, 'Wx_wns')] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
-        params[pp(prefix, 'Ux_wns')] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
-        params[pp(prefix, 'W_comb_att_wns')] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-        params[pp(prefix, 'Wc_att_wns')] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-        params[pp(prefix, 'U_att_wns')] = scale_mul * numpy.ones((1 * 1)).astype(floatX)
 
     return params
 
@@ -707,12 +711,11 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                                recurrence_transition_depth=2,
                                truncate_gradient=-1,
                                profile=False,
-
                                **kwargs):
 
 
     print("doing multi gru cond!")
-    assert contexts!=[None] and len(contexts)==2, 'Two contexts must be provided'
+    assert contexts!=[None, None] and len(contexts)==2, 'Two contexts must be provided'
 
     numatts = 1
     if options['multisource_type'] is not None:
@@ -754,9 +757,12 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     if init_state is None:
         init_state = tensor.zeros((n_samples, dim))
 
+    # do this for each attention mechanism
     for i in range(numatts):
-        if i==0: suff=""
-        else: suff=str(i+1)
+        if i == 0:
+            suff = ""
+        else:
+            suff = str(i+1)
 
         assert contexts[i].ndim == 3, 'Context must be 3-d: #annotation x #sample x dim'
 
@@ -784,7 +790,7 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     # step function (to be used by scan)
 
     # m_ = mask, x_ = state_below_, x__ = state_belowx
-    def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, aux_alpha_, pctx_, aux_pctx_,
+    def _step_slice(m_, x_, xx_, h_, combined_ctx_, alpha_, aux_alpha_, pctx_, aux_pctx_,
                     cc_, aux_cc_, rec_dropout, ctx_dropout, aux_ctx_dropout):
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
@@ -848,15 +854,15 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             pctx2__ = tensor.tanh(pctx2__)
 
             # calculate attention weights a_ij
-            aux_alpha_ = tensor.dot(pctx2__ * aux_ctx_dropout[1], wn(pp(prefix, 'U_att2'))) + tparams[pp(prefix, 'c_tt2')]
-            aux_alpha_ = aux_alpha_.reshape([aux_alpha_.shape[0], aux_alpha_.shape[1]])
-            aux_alpha_ = tensor.exp(aux_alpha_ - aux_alpha_.max(0, keepdims=True))
+            aux_alpha = tensor.dot(pctx2__ * aux_ctx_dropout[1], wn(pp(prefix, 'U_att2'))) + tparams[pp(prefix, 'c_tt2')]
+            aux_alpha = aux_alpha.reshape([aux_alpha.shape[0], aux_alpha.shape[1]])
+            aux_alpha= tensor.exp(aux_alpha - aux_alpha.max(0, keepdims=True))
             if context_masks[1]:
-                alpha = alpha * context_masks[1]
-            aux_alpha_ = aux_alpha_ / aux_alpha_.sum(0, keepdims=True)
+                aux_alpha = aux_alpha * context_masks[1]
+            aux_alpha = aux_alpha / aux_alpha.sum(0, keepdims=True)
 
             # apply attention weights to get context vector
-            aux_ctx_ = (aux_cc_ * aux_alpha_[:, :, None]).sum(0)  # current context
+            aux_ctx_ = (aux_cc_ * aux_alpha[:, :, None]).sum(0)  # current context
 
 
         # ----------------------------------------------
@@ -870,6 +876,9 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             # linear projection to context dimensions
             combined_ctx_ = tensor.dot(combined_ctx_, wn(pp(prefix, 'W_projcomb_att'))) + \
                             tparams[pp(prefix, 'b_projcomb')]
+
+            #theano.printing.pydotprint(combined_ctx_, outfile="viz-combctx" + ".png", var_with_name_simple=True)
+
         else:
             combined_ctx_ = ctx_
 
@@ -921,7 +930,7 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             h2 = m_[:, None] * h2 + (1. - m_)[:, None] * h2_prev
             h2_prev = h2
 
-        return h2, combined_ctx_, alpha.T, aux_alpha_.T  # pstate_, preact, preactx, r, u
+        return h2, combined_ctx_, alpha.T, aux_alpha.T  # pstate_, preact, preactx, r, u
 
     #----------- end of _step_slice -----------
 
