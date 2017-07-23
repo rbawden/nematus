@@ -81,6 +81,63 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
 
     return x, x_mask, y, y_mask
 
+# batch preparation
+def prepare_multi_data(seqs_x, aux_seqs_x, seqs_y, maxlen=None, n_words_src=30000,
+                 n_words=30000, n_factors=1):
+    # x: a list of sentences
+    lengths_x = [len(s) for s in seqs_x]
+    aux_lengths_x = [len(s) for s in aux_seqs_x]
+    lengths_y = [len(s) for s in seqs_y]
+
+    if maxlen is not None:
+        new_seqs_x = []
+        new_aux_seqs_x = []
+        new_seqs_y = []
+        new_lengths_x = []
+        new_aux_lengths_x = []
+        new_lengths_y = []
+        for l_x, l_x2, s_x, s_x2, l_y, s_y in zip(lengths_x, aux_lengths_x, seqs_x, aux_seqs_x, lengths_y, seqs_y):
+            if l_x < maxlen and l_y < maxlen and l_x2 < maxlen:
+                new_seqs_x.append(s_x)
+                new_aux_seqs_x.append(s_x2)
+                new_lengths_x.append(l_x)
+                new_aux_lengths_x.append(l_x2)
+                new_seqs_y.append(s_y)
+                new_lengths_y.append(l_y)
+        lengths_x = new_lengths_x
+        seqs_x = new_seqs_x
+        aux_lengths_x = new_aux_lengths_x
+        aux_seqs_x = new_aux_seqs_x
+        lengths_y = new_lengths_y
+        seqs_y = new_seqs_y
+
+        if len(lengths_x) < 1 or len(lengths_y) < 1 and len(aux_lengths_x) < 1:
+            return None, None, None, None, None, None
+
+    n_samples = len(seqs_x)
+    maxlen_x = numpy.max(lengths_x) + 1
+    aux_maxlen_x = numpy.max(aux_lengths_x) + 1
+    maxlen_y = numpy.max(lengths_y) + 1
+
+    x = numpy.zeros((n_factors, maxlen_x, n_samples)).astype('int64')
+    aux_x = numpy.zeros((n_factors, aux_maxlen_x, n_samples)).astype('int64')
+    y = numpy.zeros((maxlen_y, n_samples)).astype('int64')
+    x_mask = numpy.zeros((maxlen_x, n_samples)).astype(floatX)
+    aux_x_mask = numpy.zeros((aux_maxlen_x, n_samples)).astype(floatX)
+    y_mask = numpy.zeros((maxlen_y, n_samples)).astype(floatX)
+    for idx, [s_x, s_x2, s_y] in enumerate(zip(seqs_x, aux_seqs_x, seqs_y)):
+        x[:, :lengths_x[idx], idx] = zip(*s_x)
+        aux_x[:, :aux_lengths_x[idx], idx] = zip(*s_x2)
+        x_mask[:lengths_x[idx]+1, idx] = 1.
+        aux_x_mask[:aux_lengths_x[idx] + 1, idx] = 1.
+        y[:lengths_y[idx], idx] = s_y
+        y_mask[:lengths_y[idx]+1, idx] = 1.
+
+    #print(x, aux_x)
+    #raw_input()
+    return x, x_mask, aux_x, aux_x_mask, y, y_mask
+
+
 # initialize all parameters
 def init_params(options):
     params = OrderedDict()
@@ -349,7 +406,6 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     # decoder - pass through the decoder conditional gru with attention
     if options['multisource_type'] is not None:
-        print('should be doing multi gru cond')
         proj = get_layer_constr('multi_gru_cond')(tparams, emb, options, dropout,
                                              prefix='decoder',
                                              mask=y_mask, context=ctx, aux_context=aux_ctx,
@@ -392,7 +448,6 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     # we return state of each layer
     if sampling:
-        print("ret state from next state")
         ret_state = [next_state.reshape((1, next_state.shape[0], next_state.shape[1]))]
     else:
         ret_state = None
@@ -410,6 +465,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
             else:
                 input_ = next_state
             print('some deep stuff')
+            # TODO: multisource
             out_state = get_layer_constr(options['decoder_deep'])(tparams, input_, options, dropout,
                                           prefix=pp('decoder', level),
                                           mask=y_mask,
@@ -558,7 +614,7 @@ def build_multisource_model(tparams, options):
 
     # secondary input and encoder
 
-    x_mask2 = tensor.matrix('x_mask', dtype=floatX)
+    x_mask2 = tensor.matrix('x_mask2', dtype=floatX)
     # source text length 5; batch size 10
     x_mask2.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
 
@@ -657,11 +713,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     ctx_mean = ctx.mean(0)
     # ctx_mean = concatenate([proj[0][-1],projr[0][-1]], axis=proj[0].ndim-2)
 
-
-
     x2, ctx2 = build_encoder(tparams, options, dropout, x_mask=None, sampling=True, suffix="2")
-
-
 
     n_samples = x.shape[2]
     # get the input for decoder rnn initializer mlp
@@ -672,7 +724,6 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     encoders.append(EncoderItems(x=x2, ctx=ctx2, ctx_mean=ctx_mean2, x_mask=None))
 
     if options['multisource_type'] == "att-concatenation":
-        print("concatenate means")
         # TODO: change to concatenate? just sum for now
         ctx_mean = sum([encoders[0].ctx_mean, encoders[1].ctx_mean])
         # project to same space
@@ -688,8 +739,6 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
                                         dropout_probability=options['dropout_hidden'],
                                         prefix='ff_state', activ='tanh')
 
-    print("in multi sampler after ff layer")
-
     # every decoder RNN layer gets its own copy of the init state
     init_state = init_state.reshape([1, init_state.shape[0], init_state.shape[1]])
     if options['dec_depth'] > 1:
@@ -699,18 +748,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     inps = [encoders[0].x, encoders[1].x]
     outs = [init_state, encoders[0].ctx, encoders[1].ctx]
     f_init = theano.function(inps, outs, name='f_init', profile=profile)
-    #f_init = theano.function([encoders[0].x, encoders[1].x], init_state, name='f_init', profile=profile)
-    #f_init1 = theano.function([encoders[0].x], encoders[0].ctx, name='f_init2', profile=profile)
-    #f_init2 = theano.function([encoders[1].x], encoders[1].ctx, name='f_init2', profile=profile)
     logging.info('Done')
-
-    #theano.printing.pydotprint(f_init, outfile="finit" + ".png", var_with_name_simple=True)
-    # theano.printing.debugprint(init_state)
-    # raw_input()
-    # theano.printing.debugprint(encoders[0].ctx)
-    # raw_input()
-    # theano.printing.debugprint(encoders[1].ctx)
-    # print(f_init)
 
     # x: 1 x 1
     y = tensor.vector('y_sampler', dtype='int64')
@@ -724,8 +762,6 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
                                               x_mask=None, y_mask=None, sampling=True,
                                               aux_x_mask=None, aux_ctx=encoders[1].ctx)
 
-    #theano.printing.debugprint(logit)
-
     # compute the softmax probability
     next_probs = tensor.nnet.softmax(logit)
 
@@ -735,12 +771,11 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     # compile a function to do the whole thing above, next word probability,
     # sampled word for the next target, next hidden state to be used
 
-
     logging.info('Building f_next...')
     inps = [y, encoders[0].ctx, encoders[1].ctx, init_state]
     outs = [next_probs, next_sample, ret_state]
 
-
+    #theano.printing.debugprint(logit)
     #theano.printing.pydotprint(ret_state.sum(), outfile="nextprobs" + ".png", var_with_name_simple=True)
 
     if return_alignment:
@@ -1190,6 +1225,8 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
     alignments_json = []
 
+    print("in pred probs")
+
     for x, y in iterator:
         #ensure consistency in number of factors
         if len(x[0][0]) != options['factors']:
@@ -1464,6 +1501,8 @@ def train(dim_word=512,  # word vector dimensionality
         params = load_params(prior_model, params, with_prefix='prior_')
 
     tparams = init_theano_params(params)
+    # print(tparams)
+    # raw_input()
 
     # ---------------- build model ----------------
     if multisource_type is not None:
@@ -1536,7 +1575,6 @@ def train(dim_word=512,  # word vector dimensionality
     #theano.printing.pydotprint(cost, outfile="viz-cost"+".png", var_with_name_simple=True)
 
     logging.info('Computing gradient...')
-    #print(updated_params)
 
     # bug bug
     grads = tensor.grad(cost, wrt=itemlist(updated_params))
@@ -1595,36 +1633,64 @@ def train(dim_word=512,  # word vector dimensionality
     for training_progress.eidx in xrange(training_progress.eidx, max_epochs):
         n_samples = 0
 
-        for x, y, aux_x in train:
+        for xs, y in train:
+
+            if multisource_type is not None:
+                x, aux_x = xs
+            else:
+                x = xs
+
             training_progress.uidx += 1
             use_noise.set_value(1.)
 
-            #ensure consistency in number of factors
+            # ensure consistency in number of factors
             if len(x) and len(x[0]) and len(x[0][0]) != factors:
                 logging.error('Mismatch between number of factors in settings ({0}), and number in training corpus ({1})\n'.format(factors, len(x[0][0])))
                 sys.exit(1)
-
             xlen = len(x)
+
+            if multisource_type is not None:
+                # ensure consistency in number of factors
+                if len(aux_x) and len(aux_x[0]) and len(aux_x[0][0]) != factors:
+                    logging.error(
+                        'Auxiliary input: Mismatch between number of factors in settings ({0}), and number in training corpus ({1})\n'.format(
+                            factors, len(aux_x[0][0])))
+                    sys.exit(1)
+                aux_xlen = len(aux_x)
+                assert(xlen == aux_xlen) # must be the same size
+
             n_samples += xlen
 
             if model_options['objective'] == 'CE':
+                if multisource_type is not None:
+                    x, x_mask, aux_x, aux_x_mask, y, y_mask = prepare_multi_data(x, aux_x, y,
+                                                                                 maxlen=maxlen,
+                                                                                 n_factors=factors,
+                                                                                 n_words_src=n_words_src,
+                                                                                 n_words=n_words)
 
-                x, x_mask, y, y_mask = prepare_data(x, y, maxlen=maxlen,
-                                                    n_factors=factors,
-                                                    n_words_src=n_words_src,
-                                                    n_words=n_words)
-
-                if x is None:
-                    logging.warning('Minibatch with zero sample under length %d' % maxlen)
-                    training_progress.uidx -= 1
-                    continue
+                    if x is None or aux_x is None:
+                        logging.warning('Multisource: Minibatch with zero sample under length %d' % maxlen)
+                        training_progress.uidx -= 1
+                        continue
+                else:
+                    x, x_mask, y, y_mask = prepare_data(x, y, maxlen=maxlen,
+                                                         n_factors=factors,
+                                                         n_words_src=n_words_src,
+                                                         n_words=n_words)
+                    if x is None:
+                        logging.warning('Minibatch with zero sample under length %d' % maxlen)
+                        training_progress.uidx -= 1
+                        continue
 
                 cost_batches += 1
                 last_disp_samples += xlen
+
+                # TODO: multisource??
                 last_words += (numpy.sum(x_mask) + numpy.sum(y_mask))/2.0
 
                 # compute cost, grads and update parameters
-                cost = f_update(lrate, x, x_mask, y, y_mask)
+                cost = f_update(lrate, x, x_mask, aux_x, aux_x_mask, y, y_mask)
 
                 cost_sum += cost
 

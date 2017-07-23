@@ -115,7 +115,7 @@ class TextIterator:
     def reset(self):
         if self.shuffle:
             # multi-source shuffling
-            if self.aux_source:
+            if self.multisource:
                 self.source, self.target, self.aux_source = \
                     shuffle.main([self.source_orig, self.target_orig,
                                   self.aux_source_orig], temporary=True)
@@ -124,7 +124,7 @@ class TextIterator:
         else:
             self.source.seek(0)
             self.target.seek(0)
-            if self.aux_source:
+            if self.multisource:
                 self.aux_source.seek(0)
 
     def next(self):
@@ -139,7 +139,7 @@ class TextIterator:
 
         # fill buffer, if it's empty
         assert len(self.source_buffer) == len(self.target_buffer), 'Buffer size mismatch!'
-        if self.aux_source:
+        if self.multisource:
             assert len(self.aux_source_buffer) == len(self.source_buffer), \
                 'Incorrect length of auxiliary input!'
 
@@ -156,7 +156,7 @@ class TextIterator:
                 if len(ss) > self.maxlen or len(tt) > self.maxlen:
                     continue
 
-                if self.aux_source:
+                if self.multisource:
                     # TODO: make special option for skip w/ auxiliary context
                     if self.skip_empty and (len(aux_ss) == 0):
                         continue
@@ -171,8 +171,14 @@ class TextIterator:
 
                 if len(self.source_buffer) == self.k:
                     break
+                if self.multisource and len(self.aux_source_buffer) == self.k:
+                    break
 
             if len(self.source_buffer) == 0 or len(self.target_buffer) == 0:
+                self.end_of_data = False
+                self.reset()
+                raise StopIteration
+            if self.multisource and len(self.aux_source_buffer) == 0:
                 self.end_of_data = False
                 self.reset()
                 raise StopIteration
@@ -219,7 +225,7 @@ class TextIterator:
 
                 if self.multisource:
                     try:
-                        ss =     self.source_buffer.pop()
+                        aux_ss = self.aux_source_buffer.pop()
                     except IndexError:
                         break
                     tmp = []
@@ -249,4 +255,7 @@ class TextIterator:
         except IOError:
             self.end_of_data = True
 
-        return source, target, aux_source
+        if self.multisource:
+            return (source, aux_source), target
+        else:
+            return (source, target)

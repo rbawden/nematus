@@ -855,7 +855,7 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
         aux_pstate_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att2')))
         if options['layer_normalisation']:
             aux_pstate_ = layer_norm(aux_pstate_, tparams[pp(prefix, 'W_comb_att_lnb2')], tparams[pp(prefix, 'W_comb_att_lns2')])
-        aux_pctx__ = aux_pctx_ + pstate_[None, :, :]
+        aux_pctx__ = aux_pctx_ + aux_pstate_[None, :, :]
         # pctx__ += xc_
         aux_pctx__ = tensor.tanh(aux_pctx__)
         aux_alpha = tensor.dot(aux_pctx__ * aux_ctx_dropout[1], wn(pp(prefix, 'U_att2'))) + tparams[pp(prefix, 'c_tt2')]
@@ -870,8 +870,6 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
         # -------------- combine the resulting contexts --------------
 
         if options['multisource_type'] == "att-concatenation":
-            print("combine")
-            #ctx_ = sum([ctx_, aux_ctx_])
             ctx_ = concatenate([ctx_, aux_ctx_], axis=1)
 
             # linear projection to context dimensions
@@ -880,7 +878,6 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
 
         else:
             ctx_ = ctx_
-
 
         # ------------------------ GRU 2 ------------------------
         h2_prev = h1
