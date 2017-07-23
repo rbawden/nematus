@@ -206,7 +206,7 @@ def init_params(options):
 
 
 # bidirectional RNN encoder: take input x (optionally with mask), and produce sequence of context vectors (ctx)
-def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, aux_x_mask=None, suffix=''):
+def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix=''):
 
     x = tensor.tensor3('x'+suffix, dtype='int64')
     # source text; factors 1; length 5; batch size 10
@@ -352,9 +352,9 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
         print('should be doing multi gru cond')
         proj = get_layer_constr('multi_gru_cond')(tparams, emb, options, dropout,
                                              prefix='decoder',
-                                             mask=y_mask, contexts=[ctx, aux_ctx],
-                                             context_masks=[x_mask, aux_x_mask],
-                                             pctxs=[pctx_, pctx2_],
+                                             mask=y_mask, context=ctx, aux_context=aux_ctx,
+                                             context_mask=x_mask, aux_context_mask=aux_x_mask,
+                                             pctx=pctx_, aux_pctx=pctx2_,
                                              one_step=one_step,
                                              init_state=init_state[0],
                                              recurrence_transition_depth=options['dec_base_recurrence_transition_depth'],
@@ -364,11 +364,12 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                              truncate_gradient=options['decoder_truncate_gradient'],
                                              profile=profile)
     else:
+        # RB: debug
         print("is not doing any multi stuff here")
         proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
                                             prefix='decoder',
                                             mask=y_mask, context=ctx,
-                                            context_mask=x_mask,
+                                            context_masks=x_mask,
                                             pctx_=pctx_,
                                             one_step=one_step,
                                             init_state=init_state[0],
@@ -465,12 +466,12 @@ def build_model(tparams, options):
     dropout = dropout_constr(options, use_noise, trng, sampling=False)
 
     x_mask = tensor.matrix('x_mask', dtype=floatX)
-    aux_x_mask = tensor.matrix('aux_x_mask', dtype=floatX)
+    #aux_x_mask = tensor.matrix('aux_x_mask', dtype=floatX)
     y = tensor.matrix('y', dtype='int64')
     y_mask = tensor.matrix('y_mask', dtype=floatX)
     # source text length 5; batch size 10
     x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
-    aux_x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
+    #aux_x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
     # target text length 8; batch size 10
     y.tag.test_value = (numpy.random.rand(8, 10)*100).astype('int64')
     y_mask.tag.test_value = numpy.ones(shape=(8, 10)).astype(floatX)
@@ -546,7 +547,6 @@ def build_multisource_model(tparams, options):
     x_mask = tensor.matrix('x_mask', dtype=floatX)
     # source text length 5; batch size 10
     x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
-    x_mask.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
 
     # ------------ ENCODER ------------
     x, ctx = build_encoder(tparams, options, dropout, x_mask, sampling=False, suffix="")
@@ -560,7 +560,6 @@ def build_multisource_model(tparams, options):
 
     x_mask2 = tensor.matrix('x_mask', dtype=floatX)
     # source text length 5; batch size 10
-    x_mask2.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
     x_mask2.tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
 
     # ------------ ENCODER ------------
@@ -577,14 +576,25 @@ def build_multisource_model(tparams, options):
         #theano.printing.pydotprint(ctx, outfile="viz-ctx"+suff+".png", var_with_name_simple=True)
 
 
+    # utility function to look up parameters and apply weight normalization if enabled
+    def wn(param_name):
+        param = tparams[param_name]
+        if options['weight_normalisation']:
+            return weight_norm(param, tparams[param_name + '_wns'])
+        else:
+            return param
+
     #------------ DECODER ------------
     # initial decoder state
     # just initialise with the main ctx_mean and don't use auxiliary for now
     # todo: how to do a projection of concatenated means?
     if options['multisource_type']=="att-concatenation":
-        # TODO: do concatenation and not sum
-        ctx_mean_combo = theano.tensor.sum([ctx_mean, ctx_mean2], axis=1)
+        # TODO: do concatenation and not sum - HELP?
+        ctx_mean_combo = concatenate([ctx_mean, ctx_mean2], axis=1)
 
+        # linear projection to context dimensions
+        ctx_mean_combo = tensor.dot(ctx_mean_combo , wn(pp('decoder', 'W_projcomb_att'))) + \
+                        tparams[pp('decoder', 'b_projcomb')]
 
 
     init_state = get_layer_constr('ff')(tparams, ctx_mean_combo, options, dropout,
@@ -635,16 +645,31 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
 
     encoders = []
     # first one is always the main input
-    for i in range(num_encoders):
+    #for i in range(num_encoders):
+    #   if i == 0:
+    #       suff = ""
+    #   else:
+    #       suff = str(i+1)
 
-        x, ctx = build_encoder(tparams, options, dropout, x_mask=None, sampling=True)
-        n_samples = x.shape[2]
+    x, ctx = build_encoder(tparams, options, dropout, x_mask=None, sampling=True, suffix="")
+    n_samples = x.shape[2]
+    # get the input for decoder rnn initializer mlp
+    ctx_mean = ctx.mean(0)
+    # ctx_mean = concatenate([proj[0][-1],projr[0][-1]], axis=proj[0].ndim-2)
 
-        # get the input for decoder rnn initializer mlp
-        ctx_mean = ctx.mean(0)
-        # ctx_mean = concatenate([proj[0][-1],projr[0][-1]], axis=proj[0].ndim-2)
 
-        encoders.append(EncoderItems(x=x, ctx=ctx, ctx_mean=ctx_mean, x_mask=None))
+
+    x2, ctx2 = build_encoder(tparams, options, dropout, x_mask=None, sampling=True, suffix="2")
+
+
+
+    n_samples = x.shape[2]
+    # get the input for decoder rnn initializer mlp
+    ctx_mean2 = ctx2.mean(0)
+    # ctx_mean = concatenate([proj[0][-1],projr[0][-1]], axis=proj[0].ndim-2)
+
+    encoders.append(EncoderItems(x=x, ctx=ctx, ctx_mean=ctx_mean, x_mask=None))
+    encoders.append(EncoderItems(x=x2, ctx=ctx2, ctx_mean=ctx_mean2, x_mask=None))
 
     if options['multisource_type'] == "att-concatenation":
         print("concatenate means")
@@ -655,6 +680,8 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
         #W_proj_sampler = tensor.vector('Wproj_sampler', dtype='int64')
         #b_proj_sampler = tensor.vector('Wproj_sampler', dtype='int64')
         #ctx_mean = ctx_mean * W_proj_sampler + b_proj_sampler
+    else:
+        ctx_mean = encoders[0].ctx_mean
 
 
     init_state = get_layer_constr('ff')(tparams, ctx_mean, options, dropout,
@@ -669,11 +696,21 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
         init_state = tensor.tile(init_state, (options['dec_depth'], 1, 1))
 
     logging.info('Building f_init...')
+    inps = [encoders[0].x, encoders[1].x]
     outs = [init_state, encoders[0].ctx, encoders[1].ctx]
-    f_init = theano.function([encoders[0].x, encoders[1].x], outs, name='f_init', profile=profile)
+    f_init = theano.function(inps, outs, name='f_init', profile=profile)
+    #f_init = theano.function([encoders[0].x, encoders[1].x], init_state, name='f_init', profile=profile)
+    #f_init1 = theano.function([encoders[0].x], encoders[0].ctx, name='f_init2', profile=profile)
+    #f_init2 = theano.function([encoders[1].x], encoders[1].ctx, name='f_init2', profile=profile)
     logging.info('Done')
 
-
+    #theano.printing.pydotprint(f_init, outfile="finit" + ".png", var_with_name_simple=True)
+    # theano.printing.debugprint(init_state)
+    # raw_input()
+    # theano.printing.debugprint(encoders[0].ctx)
+    # raw_input()
+    # theano.printing.debugprint(encoders[1].ctx)
+    # print(f_init)
 
     # x: 1 x 1
     y = tensor.vector('y_sampler', dtype='int64')
@@ -687,6 +724,8 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
                                               x_mask=None, y_mask=None, sampling=True,
                                               aux_x_mask=None, aux_ctx=encoders[1].ctx)
 
+    #theano.printing.debugprint(logit)
+
     # compute the softmax probability
     next_probs = tensor.nnet.softmax(logit)
 
@@ -696,9 +735,13 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     # compile a function to do the whole thing above, next word probability,
     # sampled word for the next target, next hidden state to be used
 
+
     logging.info('Building f_next...')
     inps = [y, encoders[0].ctx, encoders[1].ctx, init_state]
     outs = [next_probs, next_sample, ret_state]
+
+
+    #theano.printing.pydotprint(ret_state.sum(), outfile="nextprobs" + ".png", var_with_name_simple=True)
 
     if return_alignment:
         # TODO: 2nd alignment?
@@ -1386,8 +1429,8 @@ def train(dim_word=512,  # word vector dimensionality
                             batch_size=valid_batch_size,
                             use_factor=(factors>1),
                             maxlen=maxlen,
-                            aux_datasets=aux_datasets,
-                            aux_dictionaries=aux_dictionaries)
+                            aux_source=aux_source,
+                            aux_source_dicts=aux_source_dicts)
     else:
         valid = None
 
@@ -1493,7 +1536,9 @@ def train(dim_word=512,  # word vector dimensionality
     #theano.printing.pydotprint(cost, outfile="viz-cost"+".png", var_with_name_simple=True)
 
     logging.info('Computing gradient...')
-    print(updated_params)
+    #print(updated_params)
+
+    # bug bug
     grads = tensor.grad(cost, wrt=itemlist(updated_params))
     logging.info('Done')
 

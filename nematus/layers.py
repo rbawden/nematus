@@ -22,7 +22,7 @@ from collections import OrderedDict, namedtuple
 # layers: 'name': ('parameter initializer', 'feedforward')
 layers = {'ff': ('param_init_fflayer', 'fflayer'),
           'gru': ('param_init_gru', 'gru_layer'),
-          'multi_gru_cond': ('param_init_gru_cond', 'multi_gru_cond_layer'),
+          'multi_gru_cond': ('param_init_gru_cond', 'multi_gru_cond_layer2'),
           'gru_cond': ('param_init_gru_cond', 'gru_cond_layer'),
           'embedding': ('param_init_embedding_layer', 'embedding_layer')
           }
@@ -467,8 +467,11 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     c_att = numpy.zeros((1,)).astype(floatX)
     params[pp(prefix, 'c_tt')] = c_att
 
+    numencoders = 1
+    if options["multisource_type"] is not None:
+        numencoders += 1
     # multisource (so an auxiliary attention mechanism)
-    for i in range(2):
+    for i in range(numencoders):
         if i==0: suff=""
         else: suff=str(i+1)
 
@@ -589,32 +592,39 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     state_below_ = tensor.dot(state_below * below_dropout[1], wn(pp(prefix, 'W'))) + \
                    tparams[pp(prefix, 'b')]
 
+    # ----------- beginning of _step_slice -----------
+    # step function (to be used by scan)
     def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, pctx_, cc_, rec_dropout, ctx_dropout):
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
             xx_ = layer_norm(xx_, tparams[pp(prefix, 'Wx_lnb')], tparams[pp(prefix, 'Wx_lns')])
 
+        # ------------------------ GRU 1 ------------------------
+        # compute of r'_j and z'_j (reset and update activations)
         preact1 = tensor.dot(h_ * rec_dropout[0], wn(pp(prefix, 'U')))
         if options['layer_normalisation']:
             preact1 = layer_norm(preact1, tparams[pp(prefix, 'U_lnb')], tparams[pp(prefix, 'U_lns')])
         preact1 += x_
         preact1 = tensor.nnet.sigmoid(preact1)
 
+        # reset and update gates
         r1 = _slice(preact1, 0, dim)
         u1 = _slice(preact1, 1, dim)
 
+        # proposed intermediate representation ^s'_j
+        # gate r'_j applied to (U' * s_{j-1})
         preactx1 = tensor.dot(h_ * rec_dropout[1], wn(pp(prefix, 'Ux')))
         if options['layer_normalisation']:
             preactx1 = layer_norm(preactx1, tparams[pp(prefix, 'Ux_lnb')], tparams[pp(prefix, 'Ux_lns')])
         preactx1 *= r1
         preactx1 += xx_
-
         h1 = tensor.tanh(preactx1)
 
+        # intermediate representation s'_j (here = h1) (using the update gate)
         h1 = u1 * h_ + (1. - u1) * h1
         h1 = m_[:, None] * h1 + (1. - m_)[:, None] * h_
 
-        # attention
+        # -------------- attention mechanism --------------
         pstate_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att')))
         if options['layer_normalisation']:
             pstate_ = layer_norm(pstate_, tparams[pp(prefix, 'W_comb_att_lnb')], tparams[pp(prefix, 'W_comb_att_lns')])
@@ -629,10 +639,12 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         alpha = alpha / alpha.sum(0, keepdims=True)
         ctx_ = (cc_ * alpha[:, :, None]).sum(0)  # current context
 
+        # ------------------------ GRU 2 ------------------------
         h2_prev = h1
         for i in xrange(recurrence_transition_depth - 1):
             suffix = '' if i == 0 else ('_drt_%s' % i)
 
+            # compute of r_j and z_j (reset and update activations)
             preact2 = tensor.dot(h2_prev * rec_dropout[3 + 2 * i], wn(pp(prefix, 'U_nl' + suffix))) + tparams[
                 pp(prefix, 'b_nl' + suffix)]
             if options['layer_normalisation']:
@@ -647,15 +659,19 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                 preact2 += ctx1_
             preact2 = tensor.nnet.sigmoid(preact2)
 
+            # reset and update gates
             r2 = _slice(preact2, 0, dim)
             u2 = _slice(preact2, 1, dim)
 
+            # proposed hidden state of the cGRU ^s_j
             preactx2 = tensor.dot(h2_prev * rec_dropout[4 + 2 * i], wn(pp(prefix, 'Ux_nl' + suffix))) + tparams[
                 pp(prefix, 'bx_nl' + suffix)]
             if options['layer_normalisation']:
                 preactx2 = layer_norm(preactx2, tparams[pp(prefix, 'Ux_nl%s_lnb' % suffix)],
                                       tparams[pp(prefix, 'Ux_nl%s_lns' % suffix)])
             preactx2 *= r2
+
+            # they use the context vector from the attention mechanism
             if i == 0:
                 ctx2_ = tensor.dot(ctx_ * ctx_dropout[3],
                                    wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
@@ -663,6 +679,8 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                     ctx2_ = layer_norm(ctx2_, tparams[pp(prefix, 'Wcx%s_lnb' % suffix)],
                                        tparams[pp(prefix, 'Wcx%s_lns' % suffix)])
                 preactx2 += ctx2_
+
+            # apply update gate to produce s_j (here h2 = hidden state of cGRU)
             h2 = tensor.tanh(preactx2)
 
             h2 = u2 * h2_prev + (1. - u2) * h2
@@ -699,6 +717,252 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
 Attention = namedtuple('Attention', 'ctx_ pctx__ alpha')
 
+
+def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
+                   mask=None, context=None, one_step=False,
+                   init_memory=None, init_state=None,
+                   context_mask=None,
+                   dropout_probability_below=0,
+                   dropout_probability_ctx=0,
+                   dropout_probability_rec=0,
+                   pctx_=None,
+                   recurrence_transition_depth=2,
+                   truncate_gradient=-1,
+                   profile=False,
+                   aux_context=None,
+                   aux_pctx_=None,
+                   aux_context_mask=None,
+                   **kwargs):
+
+
+    assert context and aux_context, 'Contexts must be provided'
+
+    if one_step:
+        assert init_state, 'previous state must be provided'
+
+    nsteps = state_below.shape[0]
+    if state_below.ndim == 3:
+        n_samples = state_below.shape[1]
+        dim_below = state_below.shape[2]
+    else:
+        n_samples = 1
+        dim_below = state_below.shape[1]
+
+    # mask
+    if mask is None:
+        mask = tensor.ones((state_below.shape[0], 1))
+
+    dim = tparams[pp(prefix, 'Wcx')].shape[1]
+
+    rec_dropout = dropout((n_samples, dim), dropout_probability_rec, num=1 + 2 * recurrence_transition_depth)
+
+
+    # utility function to look up parameters and apply weight normalization if enabled
+    def wn(param_name):
+        param = tparams[param_name]
+        if options['weight_normalisation']:
+            return weight_norm(param, tparams[param_name + '_wns'])
+        else:
+            return param
+
+
+    below_dropout = dropout((n_samples, dim_below), dropout_probability_below, num=2)
+    ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=4)
+    aux_ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=4)
+
+    # initial/previous state
+    if init_state is None:
+        init_state = tensor.zeros((n_samples, dim))
+
+    # projected context
+    assert context.ndim == 3, 'Context must be 3-d: #annotation x #sample x dim'
+    if pctx_ is None:
+        pctx_ = tensor.dot(context * ctx_dropout[0], wn(pp(prefix, 'Wc_att'))) + \
+                tparams[pp(prefix, 'b_att')]
+    if options['layer_normalisation']:
+        pctx_ = layer_norm(pctx_, tparams[pp(prefix, 'Wc_att_lnb')], tparams[pp(prefix, 'Wc_att_lns')])
+
+    # projected context 2
+    assert aux_context.ndim == 3, 'Context must be 3-d: #annotation x #sample x dim'
+    if aux_pctx_ is None:
+        aux_pctx_ = tensor.dot(aux_context * aux_ctx_dropout[0], wn(pp(prefix, 'Wc_att2'))) + \
+                tparams[pp(prefix, 'b_att2')]
+    if options['layer_normalisation']:
+        aux_pctx_ = layer_norm(aux_pctx_, tparams[pp(prefix, 'Wc_att_lnb2')], tparams[pp(prefix, 'Wc_att_lns2')])
+
+
+    def _slice(_x, n, dim):
+        if _x.ndim == 3:
+            return _x[:, :, n * dim:(n + 1) * dim]
+        return _x[:, n * dim:(n + 1) * dim]
+
+
+    # state_below is the previous output word embedding
+    state_belowx = tensor.dot(state_below * below_dropout[0], wn(pp(prefix, 'Wx'))) + \
+                   tparams[pp(prefix, 'bx')]
+    state_below_ = tensor.dot(state_below * below_dropout[1], wn(pp(prefix, 'W'))) + \
+                   tparams[pp(prefix, 'b')]
+
+
+    # ----------- beginning of _step_slice -----------
+    # step function (to be used by scan)
+    def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, aux_alpha_, pctx_, aux_pctx_, cc_, aux_cc_, rec_dropout, ctx_dropout, aux_ctx_dropout):
+        if options['layer_normalisation']:
+            x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
+            xx_ = layer_norm(xx_, tparams[pp(prefix, 'Wx_lnb')], tparams[pp(prefix, 'Wx_lns')])
+
+        # ------------------------ GRU 1 ------------------------
+        # compute of r'_j and z'_j (reset and update activations)
+        preact1 = tensor.dot(h_ * rec_dropout[0], wn(pp(prefix, 'U')))
+        if options['layer_normalisation']:
+            preact1 = layer_norm(preact1, tparams[pp(prefix, 'U_lnb')], tparams[pp(prefix, 'U_lns')])
+        preact1 += x_
+        preact1 = tensor.nnet.sigmoid(preact1)
+
+        # reset and update gates
+        r1 = _slice(preact1, 0, dim)
+        u1 = _slice(preact1, 1, dim)
+
+        # proposed intermediate representation ^s'_j
+        # gate r'_j applied to (U' * s_{j-1})
+        preactx1 = tensor.dot(h_ * rec_dropout[1], wn(pp(prefix, 'Ux')))
+        if options['layer_normalisation']:
+            preactx1 = layer_norm(preactx1, tparams[pp(prefix, 'Ux_lnb')], tparams[pp(prefix, 'Ux_lns')])
+        preactx1 *= r1
+        preactx1 += xx_
+        h1 = tensor.tanh(preactx1)
+
+        # intermediate representation s'_j (here = h1) (using the update gate)
+        h1 = u1 * h_ + (1. - u1) * h1
+        h1 = m_[:, None] * h1 + (1. - m_)[:, None] * h_
+
+        # -------------- attention mechanism --------------
+        pstate_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att')))
+        if options['layer_normalisation']:
+            pstate_ = layer_norm(pstate_, tparams[pp(prefix, 'W_comb_att_lnb')], tparams[pp(prefix, 'W_comb_att_lns')])
+        pctx__ = pctx_ + pstate_[None, :, :]
+        # pctx__ += xc_
+        pctx__ = tensor.tanh(pctx__)
+        alpha = tensor.dot(pctx__ * ctx_dropout[1], wn(pp(prefix, 'U_att'))) + tparams[pp(prefix, 'c_tt')]
+        alpha = alpha.reshape([alpha.shape[0], alpha.shape[1]])
+        alpha = tensor.exp(alpha - alpha.max(0, keepdims=True))
+        if context_mask:
+            alpha = alpha * context_mask
+        alpha = alpha / alpha.sum(0, keepdims=True)
+        ctx_ = (cc_ * alpha[:, :, None]).sum(0)  # current context
+
+        # -------------- auxiliary attention mechanism --------------
+        aux_pstate_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att2')))
+        if options['layer_normalisation']:
+            aux_pstate_ = layer_norm(aux_pstate_, tparams[pp(prefix, 'W_comb_att_lnb2')], tparams[pp(prefix, 'W_comb_att_lns2')])
+        aux_pctx__ = aux_pctx_ + pstate_[None, :, :]
+        # pctx__ += xc_
+        aux_pctx__ = tensor.tanh(aux_pctx__)
+        aux_alpha = tensor.dot(aux_pctx__ * aux_ctx_dropout[1], wn(pp(prefix, 'U_att2'))) + tparams[pp(prefix, 'c_tt2')]
+        aux_alpha = aux_alpha.reshape([aux_alpha.shape[0], aux_alpha.shape[1]])
+        aux_alpha = tensor.exp(aux_alpha - aux_alpha.max(0, keepdims=True))
+        if aux_context_mask:
+            aux_alpha = aux_alpha * aux_context_mask
+        aux_alpha = aux_alpha / aux_alpha.sum(0, keepdims=True)
+        aux_ctx_ = (aux_cc_ * aux_alpha[:, :, None]).sum(0)  # current context
+
+
+        # -------------- combine the resulting contexts --------------
+
+        if options['multisource_type'] == "att-concatenation":
+            print("combine")
+            #ctx_ = sum([ctx_, aux_ctx_])
+            ctx_ = concatenate([ctx_, aux_ctx_], axis=1)
+
+            # linear projection to context dimensions
+            ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + \
+                            tparams[pp(prefix, 'b_projcomb')]
+
+        else:
+            ctx_ = ctx_
+
+
+        # ------------------------ GRU 2 ------------------------
+        h2_prev = h1
+        for i in xrange(recurrence_transition_depth - 1):
+            suffix = '' if i == 0 else ('_drt_%s' % i)
+
+            # compute of r_j and z_j (reset and update activations)
+            preact2 = tensor.dot(h2_prev * rec_dropout[3 + 2 * i], wn(pp(prefix, 'U_nl' + suffix))) + tparams[
+                pp(prefix, 'b_nl' + suffix)]
+            if options['layer_normalisation']:
+                preact2 = layer_norm(preact2, tparams[pp(prefix, 'U_nl%s_lnb' % suffix)],
+                                     tparams[pp(prefix, 'U_nl%s_lns' % suffix)])
+            if i == 0:
+                ctx1_ = tensor.dot(ctx_ * ctx_dropout[2],
+                                   wn(pp(prefix, 'Wc' + suffix)))  # dropout mask is shared over mini-steps
+                if options['layer_normalisation']:
+                    ctx1_ = layer_norm(ctx1_, tparams[pp(prefix, 'Wc%s_lnb' % suffix)],
+                                       tparams[pp(prefix, 'Wc%s_lns' % suffix)])
+                preact2 += ctx1_
+            preact2 = tensor.nnet.sigmoid(preact2)
+
+            # reset and update gates
+            r2 = _slice(preact2, 0, dim)
+            u2 = _slice(preact2, 1, dim)
+
+            # proposed hidden state of the cGRU ^s_j
+            preactx2 = tensor.dot(h2_prev * rec_dropout[4 + 2 * i], wn(pp(prefix, 'Ux_nl' + suffix))) + tparams[
+                pp(prefix, 'bx_nl' + suffix)]
+            if options['layer_normalisation']:
+                preactx2 = layer_norm(preactx2, tparams[pp(prefix, 'Ux_nl%s_lnb' % suffix)],
+                                      tparams[pp(prefix, 'Ux_nl%s_lns' % suffix)])
+            preactx2 *= r2
+
+            # they use the context vector from the attention mechanism
+            if i == 0:
+                ctx2_ = tensor.dot(ctx_ * ctx_dropout[3],
+                                   wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
+                if options['layer_normalisation']:
+                    ctx2_ = layer_norm(ctx2_, tparams[pp(prefix, 'Wcx%s_lnb' % suffix)],
+                                       tparams[pp(prefix, 'Wcx%s_lns' % suffix)])
+                preactx2 += ctx2_
+
+            # apply update gate to produce s_j (here h2 = hidden state of cGRU)
+            h2 = tensor.tanh(preactx2)
+
+            h2 = u2 * h2_prev + (1. - u2) * h2
+            h2 = m_[:, None] * h2 + (1. - m_)[:, None] * h2_prev
+            h2_prev = h2
+
+        return h2, ctx_, alpha.T, aux_alpha.T  # pstate_, preact, preactx, r, u
+
+
+    seqs = [mask, state_below_, state_belowx]
+    # seqs = [mask, state_below_, state_belowx, state_belowc]
+    _step = _step_slice
+
+    shared_vars = []
+
+    if one_step:
+        rval = _step(*(seqs + [init_state, None, None, None, pctx_, aux_pctx_, context, aux_context, rec_dropout, ctx_dropout, aux_ctx_dropout] +
+                       shared_vars))
+    else:
+        rval, updates = theano.scan(_step,
+                                    sequences=seqs,
+                                    outputs_info=[init_state,
+                                                  tensor.zeros((n_samples,
+                                                                context.shape[2])),
+                                                  tensor.zeros((n_samples,
+                                                                context.shape[0])),
+                                                  tensor.zeros((n_samples,
+                                                                aux_context.shape[0]))
+                                                  ],
+                                    non_sequences=[pctx_, aux_pctx_, context, aux_context, rec_dropout, ctx_dropout, aux_ctx_dropout] + shared_vars,
+                                    name=pp(prefix, '_layers'),
+                                    n_steps=nsteps,
+                                    truncate_gradient=truncate_gradient,
+                                    profile=profile,
+                                    strict=False)
+    return rval
+
+
+
 # TODO: implement multi_gru_cond_layer
 def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                                mask=None, contexts=[None, None], one_step=False,
@@ -715,7 +979,9 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
 
     print("doing multi gru cond!")
-    assert contexts!=[None, None] and len(contexts)==2, 'Two contexts must be provided'
+    #assert contexts!=[None, None] and len(contexts)==2, 'Two contexts must be provided'
+
+    print(contexts)
 
     numatts = 1
     if options['multisource_type'] is not None:
@@ -763,7 +1029,6 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             suff = ""
         else:
             suff = str(i+1)
-
         assert contexts[i].ndim == 3, 'Context must be 3-d: #annotation x #sample x dim'
 
         # projected context
@@ -797,7 +1062,6 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             xx_ = layer_norm(xx_, tparams[pp(prefix, 'Wx_lnb')], tparams[pp(prefix, 'Wx_lns')])
 
         # ------------------------ GRU 1 ------------------------
-
         # compute of r'_j and z'_j (reset and update activations)
         preact1 = tensor.dot(h_ * rec_dropout[0], wn(pp(prefix, 'U')))
         if options['layer_normalisation']:
@@ -849,12 +1113,12 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             if options['layer_normalisation']:
                 pstate2_ = layer_norm(pstate2_, tparams[pp(prefix, 'W_comb_att_lnb2')],
                                      tparams[pp(prefix, 'W_comb_att_lns2')])
-            pctx2__ = aux_pctx_ + pstate2_[None, :, :]
+            aux_pctx__ = aux_pctx_ + pstate2_[None, :, :]
             # pctx__ += xc_
-            pctx2__ = tensor.tanh(pctx2__)
+            aux_pctx__ = tensor.tanh(aux_pctx__)
 
             # calculate attention weights a_ij
-            aux_alpha = tensor.dot(pctx2__ * aux_ctx_dropout[1], wn(pp(prefix, 'U_att2'))) + tparams[pp(prefix, 'c_tt2')]
+            aux_alpha = tensor.dot(aux_pctx__ * aux_ctx_dropout[1], wn(pp(prefix, 'U_att2'))) + tparams[pp(prefix, 'c_tt2')]
             aux_alpha = aux_alpha.reshape([aux_alpha.shape[0], aux_alpha.shape[1]])
             aux_alpha= tensor.exp(aux_alpha - aux_alpha.max(0, keepdims=True))
             if context_masks[1]:
@@ -870,7 +1134,7 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         if options['multisource_type'] == "att-concatenation":
             print("combine")
-            # combined_ctx_ = sum([ctx_, aux_ctx_])
+            #combined_ctx_ = sum([ctx_, aux_ctx_])
             combined_ctx_ = concatenate([ctx_, aux_ctx_], axis=1)
 
             # linear projection to context dimensions
@@ -959,7 +1223,7 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                                                                 contexts[1].shape[0]))
                                                   ],
                                     non_sequences=[pctxs_[0], pctxs_[1], contexts[0], contexts[1], rec_dropout,
-                                                   ctx_dropouts[0], ctx_dropouts[1],] + shared_vars,
+                                                   ctx_dropouts[0], ctx_dropouts[1]] + shared_vars,
                                     name=pp(prefix, '_layers'),
                                     n_steps=nsteps,
                                     truncate_gradient=truncate_gradient,
