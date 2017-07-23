@@ -1370,11 +1370,9 @@ def train(dim_word=512,  # word vector dimensionality
     if model_options["multisource_type"] is not None:
         assert(aux_source is not None)
 
-
     # if only one set of dictionaries used, reuse them for the auxiliary data too
-    if aux_source != None and aux_source == [None]:
+    if multisource_type is not None and aux_source == [None]:
         aux_source_dicts = dictionaries[:-1]
-
 
     # ---------------- load dictionaries and invert them ----------------
     worddicts = [None] * len(dictionaries)
@@ -1476,7 +1474,6 @@ def train(dim_word=512,  # word vector dimensionality
     logging.info('Building model')
 
     # ---------------- Initialise parameters ----------------
-    # TODO: Modify for multisource XXX
     params = init_params(model_options)
 
     optimizer_params = {}
@@ -1508,8 +1505,6 @@ def train(dim_word=512,  # word vector dimensionality
     if multisource_type is not None:
         print("Doing multisource. About to build model.")
         trng, use_noise, x, x_mask, x2, x_mask2, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
-
-        # TODO: add auxiliary inputs ???
         inps = [x, x_mask, x2, x_mask2, y, y_mask]
     else:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
@@ -1535,7 +1530,8 @@ def train(dim_word=512,  # word vector dimensionality
     if model_options['objective'] == 'CE':
         cost = cost.mean()
     elif model_options['objective'] == 'MRT':
-        #MRT objective function
+        # TODO: add multisource
+        # MRT objective function
         cost, loss = mrt_cost(cost, y_mask, model_options)
         inps += [loss]
     else:
@@ -1566,7 +1562,6 @@ def train(dim_word=512,  # word vector dimensionality
         cost += weight_map_decay
 
     updated_params = OrderedDict(tparams)
-    # TODO: check updated params
 
     # don't update prior model parameters
     if prior_model:
@@ -1619,7 +1614,7 @@ def train(dim_word=512,  # word vector dimensionality
 
     logging.info('Optimization')
 
-    #save model options
+    # save model options
     json.dump(model_options, open('%s.json' % saveto, 'wb'), indent=2)
 
     valid_err = None
