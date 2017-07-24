@@ -401,10 +401,12 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     scale_add = 0.0
     scale_mul = 1.0
 
+
     W = numpy.concatenate([norm_weight(nin, dim),
                            norm_weight(nin, dim)], axis=1)
     params[pp(prefix, 'W')] = W
     params[pp(prefix, 'b')] = numpy.zeros((2 * dim,)).astype(floatX)
+
     U = numpy.concatenate([ortho_weight(dim_nonlin),
                            ortho_weight(dim_nonlin)], axis=1)
     params[pp(prefix, 'U')] = U
@@ -508,6 +510,9 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             params[pp(prefix, 'W_comb_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
             params[pp(prefix, 'Wc_att_lnb'+suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
             params[pp(prefix, 'Wc_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+            if options['multisource_type'] == 'att-concatenation':
+                params[pp(prefix, 'W_projcomb_att_lnb' + suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
+                params[pp(prefix, 'W_projcomb_att_lns' + suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
         if options['weight_normalisation'] :
             params[pp(prefix, 'W_wns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
             params[pp(prefix, 'U_wns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
@@ -717,7 +722,7 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
 Attention = namedtuple('Attention', 'ctx_ pctx__ alpha')
 
-
+## mcg
 def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
                    mask=None, context=None, one_step=False,
                    init_memory=None, init_state=None,
@@ -733,7 +738,6 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
                    aux_pctx_=None,
                    aux_context_mask=None,
                    **kwargs):
-
 
     assert context and aux_context, 'Contexts must be provided'
 
@@ -790,19 +794,16 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
     if options['layer_normalisation']:
         aux_pctx_ = layer_norm(aux_pctx_, tparams[pp(prefix, 'Wc_att_lnb2')], tparams[pp(prefix, 'Wc_att_lns2')])
 
-
     def _slice(_x, n, dim):
         if _x.ndim == 3:
             return _x[:, :, n * dim:(n + 1) * dim]
         return _x[:, n * dim:(n + 1) * dim]
-
 
     # state_below is the previous output word embedding
     state_belowx = tensor.dot(state_below * below_dropout[0], wn(pp(prefix, 'Wx'))) + \
                    tparams[pp(prefix, 'bx')]
     state_below_ = tensor.dot(state_below * below_dropout[1], wn(pp(prefix, 'W'))) + \
                    tparams[pp(prefix, 'b')]
-
 
     # ----------- beginning of _step_slice -----------
     # step function (to be used by scan)
@@ -837,14 +838,18 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
         h1 = m_[:, None] * h1 + (1. - m_)[:, None] * h_
 
         # -------------- attention mechanism --------------
+        # calculate e_ij (here pctx__)
         pstate_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att')))
         if options['layer_normalisation']:
             pstate_ = layer_norm(pstate_, tparams[pp(prefix, 'W_comb_att_lnb')], tparams[pp(prefix, 'W_comb_att_lns')])
         pctx__ = pctx_ + pstate_[None, :, :]
         # pctx__ += xc_
         pctx__ = tensor.tanh(pctx__)
+
+        # multiply by weight vector
         alpha = tensor.dot(pctx__ * ctx_dropout[1], wn(pp(prefix, 'U_att'))) + tparams[pp(prefix, 'c_tt')]
         alpha = alpha.reshape([alpha.shape[0], alpha.shape[1]])
+        # normalise
         alpha = tensor.exp(alpha - alpha.max(0, keepdims=True))
         if context_mask:
             alpha = alpha * context_mask
@@ -875,6 +880,34 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
             # linear projection to context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + \
                             tparams[pp(prefix, 'b_projcomb')]
+
+            if options['layer_normalisation']:
+                ctx_ = layer_norm(pstate_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
+                                     tparams[pp(prefix, 'W_projcomb_att_lns')])
+
+        elif options['multisource_type'] == "att-gate":
+            # linear combination of - s_i-1 (previous decoder state),
+            #                       - y_i-1 (previous embedded target word)
+            #                       - ctx_ (main context vector)
+            #                       - aux_ctx_ (auxiliary context vector)
+            sm1 = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-s-1'))) + \
+                            tparams[pp(prefix, 'b_att-gate-s-1')]
+            ym1
+
+            # TODO: redo
+            # g_ = sigmoid( Wz * e(y_{i-1}) + h_ * Ug + Caux * Uaux )
+            g_ = tensor.dot(h_ * rec_dropout[0], wn(pp(prefix, 'Ug')))
+            g_ += x_# TODO: should use a different transformation of state below...
+            g_ += tensor.dot(aux_ctx_ * rec_dropout[0], wn(pp(prefix, 'Uaux')))
+            g_ = tensor.nnet.sigmoid(g_)
+            # apply the gate
+            ctx_ = ctx_ * g_ + (1. - g_) * aux_ctx_
+
+        elif options['multisource_type'] == "att-hier":
+            # 3rd attention mechanism over inputs
+            1
+            # same as above but calculate e_ij using context vectors rather than annotation vectors
+
 
         else:
             ctx_ = ctx_
@@ -1130,16 +1163,11 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         # combine the inputs
 
         if options['multisource_type'] == "att-concatenation":
-            print("combine")
-            #combined_ctx_ = sum([ctx_, aux_ctx_])
             combined_ctx_ = concatenate([ctx_, aux_ctx_], axis=1)
 
             # linear projection to context dimensions
             combined_ctx_ = tensor.dot(combined_ctx_, wn(pp(prefix, 'W_projcomb_att'))) + \
                             tparams[pp(prefix, 'b_projcomb')]
-
-            #theano.printing.pydotprint(combined_ctx_, outfile="viz-combctx" + ".png", var_with_name_simple=True)
-
         else:
             combined_ctx_ = ctx_
 

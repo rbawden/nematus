@@ -465,8 +465,24 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
             else:
                 input_ = next_state
             print('some deep stuff')
-            # TODO: multisource
-            out_state = get_layer_constr(options['decoder_deep'])(tparams, input_, options, dropout,
+            # TODO: multisource for normal GRU (not cGRU)
+            if options['multisource_type'] is not None:
+                out_state = get_layer_constr('multi_gru_cond')(tparams, input_, options, dropout,
+                                                              prefix=pp('decoder', level),
+                                                              mask=y_mask,
+                                                              context=ctx, aux_context=ctx,
+                                                              context_mask=x_mask, aux_context_mask=aux_x_mask,
+                                                              pctx_=None, aux_pctx_=None,
+                                                              # TODO: we can speed up sampler by precomputing this
+                                                              one_step=one_step,
+                                                              init_state=init_state[level - 1],
+                                                              dropout_probability_below=options['dropout_hidden'],
+                                                              dropout_probability_rec=options['dropout_hidden'],
+                                                              recurrence_transition_depth=options['dec_high_recurrence_transition_depth'],
+                                                              truncate_gradient=options['decoder_truncate_gradient'],
+                                                              profile=profile)[0]
+            else:
+                out_state = get_layer_constr(options['decoder_deep'])(tparams, input_, options, dropout,
                                           prefix=pp('decoder', level),
                                           mask=y_mask,
                                           context=ctx,
@@ -1458,7 +1474,7 @@ def train(dim_word=512,  # word vector dimensionality
                          aux_source_dicts=aux_source_dicts)
 
     if valid_datasets and validFreq:
-        valid = TextIterator(valid_datasets[0], valid_datasets[1], valid_datasets[2],
+        valid = TextIterator(valid_datasets[0], valid_datasets[1],
                             dictionaries[:-1], dictionaries[-1],
                             n_words_source=n_words_src, n_words_target=n_words,
                             batch_size=valid_batch_size,
@@ -1567,11 +1583,8 @@ def train(dim_word=512,  # word vector dimensionality
     if prior_model:
         updated_params = OrderedDict([(key,value) for (key,value) in updated_params.iteritems() if not key.startswith('prior_')])
 
-    #theano.printing.pydotprint(cost, outfile="viz-cost"+".png", var_with_name_simple=True)
-
     logging.info('Computing gradient...')
 
-    # bug bug
     grads = tensor.grad(cost, wrt=itemlist(updated_params))
     logging.info('Done')
 
@@ -1591,7 +1604,6 @@ def train(dim_word=512,  # word vector dimensionality
     lr = tensor.scalar(name='lr')
 
     logging.info('Building optimizers...')
-    # TODO: modify for multisource?
     f_update, optimizer_tparams = eval(optimizer)(lr, updated_params,
                                                   grads, inps, cost,
                                                   profile=profile,
@@ -1685,7 +1697,10 @@ def train(dim_word=512,  # word vector dimensionality
                 last_words += (numpy.sum(x_mask) + numpy.sum(y_mask))/2.0
 
                 # compute cost, grads and update parameters
-                cost = f_update(lrate, x, x_mask, aux_x, aux_x_mask, y, y_mask)
+                if multisource_type is not None:
+                    cost = f_update(lrate, x, x_mask, aux_x, aux_x_mask, y, y_mask)
+                else:
+                    cost = f_update(lrate, x, x_mask, y, y_mask)
 
                 cost_sum += cost
 
@@ -1743,7 +1758,6 @@ def train(dim_word=512,  # word vector dimensionality
                         samples = [y_s] + [s for s in samples if s != y_s]
 
                     # create mini-batch with masking
-                    # TODO: add multisource
                     x, x_mask, y, y_mask = prepare_data([x_s for _ in xrange(len(samples))], samples,
                                                                     maxlen=None,
                                                                     n_factors=factors,
