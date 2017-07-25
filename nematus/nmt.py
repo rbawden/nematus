@@ -133,8 +133,6 @@ def prepare_multi_data(seqs_x, aux_seqs_x, seqs_y, maxlen=None, n_words_src=3000
         y[:lengths_y[idx], idx] = s_y
         y_mask[:lengths_y[idx]+1, idx] = 1.
 
-    #print(x, aux_x)
-    #raw_input()
     return x, x_mask, aux_x, aux_x_mask, y, y_mask
 
 
@@ -420,8 +418,6 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                              truncate_gradient=options['decoder_truncate_gradient'],
                                              profile=profile)
     else:
-        # RB: debug
-        print("is not doing any multi stuff here")
         proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
                                             prefix='decoder',
                                             mask=y_mask, context=ctx,
@@ -464,7 +460,6 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                 input_ = tensor.concatenate([next_state, ctxs], axis=axis)
             else:
                 input_ = next_state
-            print('some deep stuff')
             # TODO: multisource for normal GRU (not cGRU)
             if options['multisource_type'] is not None:
                 out_state = get_layer_constr('multi_gru_cond')(tparams, input_, options, dropout,
@@ -590,8 +585,7 @@ EncoderItems = namedtuple('EncoderItems', 'x_mask x ctx ctx_mean')
 
 # build a training model
 def build_multisource_model(tparams, options):
-
-    print("Building multisource model")
+    logging.info("Building multisource model")
 
     trng = RandomStreams(1234)
     use_noise = theano.shared(numpy_floatX(0.))
@@ -642,12 +636,6 @@ def build_multisource_model(tparams, options):
     # or you can use the last state of forward + backward encoder rnns
     # ctx_mean = concatenate([proj[0][-1], projr[0][-1]], axis=proj[0].ndim-2)
 
-        # add these to encoders
-        #encoders.append(EncoderItems(x_mask=x_mask, x=x, ctx=ctx, ctx_mean=ctx_mean))
-
-        #theano.printing.pydotprint(ctx, outfile="viz-ctx"+suff+".png", var_with_name_simple=True)
-
-
     # utility function to look up parameters and apply weight normalization if enabled
     def wn(param_name):
         param = tparams[param_name]
@@ -695,9 +683,6 @@ def build_multisource_model(tparams, options):
     cost = -tensor.log(probs.flatten()[y_flat_idx])
     cost = cost.reshape([y.shape[0], y.shape[1]])
     cost = (cost * y_mask).sum(0)
-
-    #print "Print out in build_model()"
-    print opt_ret
 
     #theano.printing.pydotprint(cost, outfile="test_viz.png", var_with_name_simple=True)
     #d3v.d3viz(cost, "/Users/rbawden/Documents/tools/nematus-multisource/test_viz.html")
@@ -1241,8 +1226,6 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
     alignments_json = []
 
-    print("in pred probs")
-
     for x, y in iterator:
         #ensure consistency in number of factors
         if len(x[0][0]) != options['factors']:
@@ -1323,7 +1306,7 @@ def train(dim_word=512,  # word vector dimensionality
           dropout_source=0, # dropout source words (0: no dropout)
           dropout_target=0, # dropout target words (0: no dropout)
           reload_=False,
-          reload_training_progress=True, # reload trainig progress (only used if reload_ is True)
+          reload_training_progress=True, # reload training progress (only used if reload_ is True)
           overwrite=False,
           external_validation_script=None,
           shuffle_each_epoch=True,
@@ -1514,12 +1497,9 @@ def train(dim_word=512,  # word vector dimensionality
         params = load_params(prior_model, params, with_prefix='prior_')
 
     tparams = init_theano_params(params)
-    # print(tparams)
-    # raw_input()
 
     # ---------------- build model ----------------
     if multisource_type is not None:
-        print("Doing multisource. About to build model.")
         trng, use_noise, x, x_mask, x2, x_mask2, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
         inps = [x, x_mask, x2, x_mask2, y, y_mask]
     else:

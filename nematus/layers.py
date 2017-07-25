@@ -510,9 +510,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             params[pp(prefix, 'W_comb_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
             params[pp(prefix, 'Wc_att_lnb'+suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
             params[pp(prefix, 'Wc_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-            if options['multisource_type'] == 'att-concatenation':
-                params[pp(prefix, 'W_projcomb_att_lnb' + suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
-                params[pp(prefix, 'W_projcomb_att_lns' + suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+
         if options['weight_normalisation'] :
             params[pp(prefix, 'W_wns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
             params[pp(prefix, 'U_wns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
@@ -526,6 +524,11 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
         # linear projection
         params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx+dimctx2, dimctx, scale=0.01)
         params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx,)).astype(floatX)
+        if options['layer_normalisation']:
+            params[pp(prefix, 'W_projcomb_att_lnb' + suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'W_projcomb_att_lns' + suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+    elif options["multisource_type"]=="att-gate":
+        1#params[pp(prefix, 'W_att-gate-sm1')] =
 
     return params
 
@@ -805,6 +808,11 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
     state_below_ = tensor.dot(state_below * below_dropout[1], wn(pp(prefix, 'W'))) + \
                    tparams[pp(prefix, 'b')]
 
+    # used for context gate
+    if options['multisource_type'] == "att-gate":
+        state_belowy = tensor.dot(state_below * rec_dropout[2], wn(pp(prefix, 'W_att-gate-y-1'))) + \
+                                tparams[pp(prefix, 'b_att-gate-y-1')]
+
     # ----------- beginning of _step_slice -----------
     # step function (to be used by scan)
     def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, aux_alpha_, pctx_, aux_pctx_, cc_, aux_cc_, rec_dropout, ctx_dropout, aux_ctx_dropout):
@@ -874,37 +882,41 @@ def multi_gru_cond_layer2(tparams, state_below, options, dropout, prefix='gru',
 
         # -------------- combine the resulting contexts --------------
 
+        # concatenate the two context vectors and project to original dimensions
         if options['multisource_type'] == "att-concatenation":
             ctx_ = concatenate([ctx_, aux_ctx_], axis=1)
-
-            # linear projection to context dimensions
+            # linear projection to return to original context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + \
                             tparams[pp(prefix, 'b_projcomb')]
-
             if options['layer_normalisation']:
                 ctx_ = layer_norm(pstate_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
                                      tparams[pp(prefix, 'W_projcomb_att_lns')])
 
+        # apply a context gate between the two different contexts
         elif options['multisource_type'] == "att-gate":
-            # linear combination of - s_i-1 (previous decoder state),
-            #                       - y_i-1 (previous embedded target word)
-            #                       - ctx_ (main context vector)
-            #                       - aux_ctx_ (auxiliary context vector)
-            sm1 = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-s-1'))) + \
+            # linear combination of (i) y_i-1 (previous embedded target word),
+            # (ii) s_i-1 (previous decoder state), (iii) ctx_ (main context vector) and
+            # (iv) aux_ctx_ (auxiliary context vector)
+            ym1_ = state_belowy
+            sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-s-1'))) + \
                             tparams[pp(prefix, 'b_att-gate-s-1')]
-            ym1
+            main_pctx_ = tensor.dot(ctx_ * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx1'))) + \
+                            tparams[pp(prefix, 'b_att-gate-ctx1')]
+            aux_pctx_ = tensor.dot(aux_ctx_ * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx2'))) + \
+                            tparams[pp(prefix, 'b_att-gate-ctx2')]
+            g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_
 
-            # TODO: redo
-            # g_ = sigmoid( Wz * e(y_{i-1}) + h_ * Ug + Caux * Uaux )
-            g_ = tensor.dot(h_ * rec_dropout[0], wn(pp(prefix, 'Ug')))
-            g_ += x_# TODO: should use a different transformation of state below...
-            g_ += tensor.dot(aux_ctx_ * rec_dropout[0], wn(pp(prefix, 'Uaux')))
-            g_ = tensor.nnet.sigmoid(g_)
-            # apply the gate
-            ctx_ = ctx_ * g_ + (1. - g_) * aux_ctx_
+            # TODO: layer normalisation here?
+
+            # then softmax
+            g_ = tensor.nnet.softmax(g_)
+
+            # gate between main ctx_ and auxiliary aux_ctx_
+            ctx_ = g_[:, None] * aux_ctx_ + (1. - g_)[:, None] * ctx_
 
         elif options['multisource_type'] == "att-hier":
             # 3rd attention mechanism over inputs
+            # TODO
             1
             # same as above but calculate e_ij using context vectors rather than annotation vectors
 
@@ -1008,10 +1020,7 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                                **kwargs):
 
 
-    print("doing multi gru cond!")
-    #assert contexts!=[None, None] and len(contexts)==2, 'Two contexts must be provided'
-
-    print(contexts)
+    assert contexts!=[None, None] and len(contexts)==2, 'Two contexts must be provided'
 
     numatts = 1
     if options['multisource_type'] is not None:
