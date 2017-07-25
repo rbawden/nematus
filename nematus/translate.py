@@ -23,7 +23,7 @@ class Translation(object):
     Models a translated segment.
     """
     def __init__(self, source_words, target_words, sentence_id=None, score=0, alignment=None,
-                 target_probs=None, hyp_graph=None, hypothesis_id=None):
+                 target_probs=None, hyp_graph=None, hypothesis_id=None, aux_source_words=None):
         self.source_words = source_words
         self.target_words = target_words
         self.sentence_id = sentence_id
@@ -32,6 +32,10 @@ class Translation(object):
         self.target_probs = target_probs #TODO: assertion of length?
         self.hyp_graph = hyp_graph
         self.hypothesis_id = hypothesis_id
+
+        # multisource
+        self.aux_source_words = aux_source_words
+        self.aux_alignment = None
 
     def get_alignment(self):
         return self.alignment
@@ -105,12 +109,14 @@ class Translation(object):
         else:
             pass #TODO: Warning if no search graph has been constructed during decoding?
 
+
 class QueueItem(object):
     """
     Models items in a queue.
     """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
 
 class Translator(object):
 
@@ -126,6 +132,7 @@ class Translator(object):
 
         # load model options
         self._load_model_options()
+
         # load and invert dictionaries
         self._build_dictionaries()
         # set up queues
@@ -151,9 +158,24 @@ class Translator(object):
         from the first model since all of them must have the same
         vocabulary.
         """
+
+        # is at least one model multi-source?
+        if len([True for options in self._options if options['multisource_type'] is not None ]) > 0:
+            multisource = True
+        else:
+            multisource = False
+
         dictionaries = self._options[0]['dictionaries']
         dictionaries_source = dictionaries[:-1]
         dictionary_target = dictionaries[-1]
+
+        # multi-source
+        if multisource:
+            aux_dictionaries_source = self._options[0]['aux_source_dicts']
+            if aux_dictionaries_source is None or len(aux_dictionaries_source)<1:
+                logging.info("No auxiliary input source dicts provided so reusing the main source dicts.")
+                aux_dictionaries_source = dictionaries_source
+
 
         # load and invert source dictionaries
         word_dicts = []
@@ -184,6 +206,26 @@ class Translator(object):
         word_idict_trg[1] = 'UNK'
 
         self._word_idict_trg = word_idict_trg
+
+        if multisource:
+            aux_word_dicts = []
+            aux_word_idicts = []
+            for dictionary in aux_dictionaries_source:
+                aux_word_dict = load_dict(dictionary)
+                if self._options[0]['n_words_src']:
+                    for key, idx in aux_word_dict.items():
+                        if idx >= self._options[0]['n_words_src']:
+                            del aux_word_dict[key]
+                aux_word_idict = dict()
+                for kk, vv in aux_word_dict.iteritems():
+                    aux_word_idict[vv] = kk
+                aux_word_idict[0] = '<eos>'
+                aux_word_idict[1] = 'UNK'
+                aux_word_dicts.append(word_dict)
+                aux_word_idicts.append(word_idict)
+
+            self._aux_word_dicts = aux_word_dicts
+            self._aux_word_idicts = aux_word_idicts
 
     def _init_queues(self):
         """
@@ -219,7 +261,6 @@ class Translator(object):
 
 
     ### MODEL LOADING AND TRANSLATION IN CHILD PROCESS ###
-
     def _load_theano(self):
         """
         Loads models, sets theano shared variables and builds samplers.
@@ -229,7 +270,7 @@ class Translator(object):
         from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
         from theano import shared
 
-        from nmt import (build_sampler, gen_sample)
+        from nmt import (build_sampler, build_multi_sampler, gen_sample)
         from theano_util import (numpy_floatX, load_params, init_theano_params)
 
         trng = RandomStreams(1234)
@@ -239,6 +280,14 @@ class Translator(object):
         fs_next = []
 
         for model, option in zip(self._models, self._options):
+
+            # check compatibility with multisource
+            if option["multisource_type"] is not None and aux_input_file is None:
+                logging.error("This model is multi-source but no auxiliary source file was provided.")
+                sys.exit(1)
+            elif option["multisource_type"] is None and aux_input_file is not None:
+                logging.warn("You provided an auxiliary input but this model is not multi-source. Ignoring extra input.")
+
             param_list = numpy.load(model).files
             param_list = dict.fromkeys(
                 [key for key in param_list if not key.startswith('adam_')], 0)
@@ -246,8 +295,10 @@ class Translator(object):
             tparams = init_theano_params(params)
 
             # always return alignment at this point
-            f_init, f_next = build_sampler(
-                tparams, option, use_noise, trng, return_alignment=True)
+            if option['multisource_type'] is not None:
+                f_init, f_next = build_multi_sampler(tparams, option, use_noise, trng, return_alignment=True)
+            else:
+                f_init, f_next = build_sampler(tparams, option, use_noise, trng, return_alignment=True)
 
             fs_init.append(f_init)
             fs_next.append(f_next)
@@ -400,6 +451,58 @@ class Translator(object):
             source_sentences.append(words)
         return idx+1, source_sentences
 
+    # Multi-source version (with one auxiliary input)
+    def _send_jobs_multisource(self, input_, aux_input_, translation_settings):
+        """
+        """
+        source_sentences = []
+        source_sentences2 = []
+        for idx, (line, line2) in enumerate(zip(input_, aux_input_)):
+            if translation_settings.char_level:
+                words = list(line.decode('utf-8').strip())
+                aux_words = list(line2.decode('utf-8').strip())
+            else:
+                words = line.strip().split()
+                aux_words = line2.strip().split()
+
+            x = []
+            x2 = []
+            for w, w2 in zip(words, aux_words):
+
+                w = [self._word_dicts[i][f] if f in self._word_dicts[i] else 1 for (i, f) in enumerate(w.split('|'))]
+                w2 = [self._aux_word_dicts[i][f] if f in self._aux_word_dicts[i] else 1 for (i, f) in enumerate(w2.split('|'))]
+                for idx, word in enumerate([w, w2]):
+                    if len(w) != self._options[0]['factors']:
+                        logging.warning(
+                            str(idx)+': Expected {0} factors, but input word has {1}\n'.format(self._options[0]['factors'], len(word)))
+                        for midx in xrange(self._num_processes):
+                            self._processes[midx].terminate()
+                    sys.exit(1)
+                x.append(w)
+                x2.append(x2)
+                print("hi")
+
+            x += [[0] * self._options[0]['factors']]
+            x2 += [[0] * self._options[0]['factors']]
+
+            input_item = QueueItem(verbose=self._verbose,
+                                   return_hyp_graph=translation_settings.get_search_graph,
+                                   return_alignment=translation_settings.get_alignment,
+                                   k=translation_settings.beam_width,
+                                   suppress_unk=translation_settings.suppress_unk,
+                                   normalization_alpha=translation_settings.normalization_alpha,
+                                   nbest=translation_settings.n_best,
+                                   seq=x,
+                                   aux_seq=x2,
+                                   idx=idx,
+                                   request_id=translation_settings.request_id)
+
+            self._input_queue.put(input_item)
+            source_sentences.append(words)
+            source_sentences2.append(words)
+            print("yup")
+        return idx + 1, (source_sentences, source_sentences2)
+
     def _retrieve_jobs(self, num_samples, request_id, timeout=5):
         """
         """
@@ -431,15 +534,26 @@ class Translator(object):
 
     ### EXPOSED TRANSLATION FUNCTIONS ###
 
-    def translate(self, source_segments, translation_settings):
+    def translate(self, source_segments, translation_settings, aux_source_segments=None):
         """
-        Returns the translation of @param source_segments.
+        Returns the translation of @param source_segments (and @param aux_source_segments if multi-source)
         """
         logging.info('Translating {0} segments...\n'.format(len(source_segments)))
-        n_samples, source_sentences = self._send_jobs(source_segments, translation_settings)
+        if aux_source_segments is not None:
+            n_samples, (source_sentences, aux_source_sentences) = self._send_jobs_multisource(source_segments,
+                                                                                              aux_source_segments,
+                                                                                              translation_settings)
+        else:
+            n_samples, source_sentences = self._send_jobs(source_segments, translation_settings)
 
         translations = []
         for i, trans in enumerate(self._retrieve_jobs(n_samples, translation_settings.request_id)):
+
+            # handle potential multi-source input
+            if aux_source_segments:
+                current_aux = aux_source_sentences[i]
+            else:
+                current_aux = None
 
             samples, scores, word_probs, alignment, hyp_graph = trans
             # n-best list
@@ -455,7 +569,8 @@ class Translator(object):
                                               alignment=current_alignment,
                                               target_probs=word_probs[j],
                                               hyp_graph=hyp_graph,
-                                              hypothesis_id=j)
+                                              hypothesis_id=j,
+                                              aux_source_words=current_aux)
                     n_best_list.append(translation)
                 translations.append(n_best_list)
             # single-best translation
@@ -467,15 +582,21 @@ class Translator(object):
                                           score=scores,
                                           alignment=current_alignment,
                                           target_probs=word_probs,
-                                          hyp_graph=hyp_graph)
+                                          hyp_graph=hyp_graph,
+                                          aux_source_words=current_aux)
                 translations.append(translation)
         return translations
 
-    def translate_file(self, input_object, translation_settings):
+    def translate_file(self, input_object, translation_settings, aux_input_object=None):
         """
         """
         source_segments = input_object.readlines()
-        return self.translate(source_segments, translation_settings)
+        # multisource
+        if aux_input_object is not None:
+            aux_source_segments = aux_input_object.readlines()
+        else:
+            aux_source_segments = None
+        return self.translate(source_segments, translation_settings, aux_source_segments=aux_source_segments)
 
 
     def translate_string(self, segment, translation_settings):
@@ -487,12 +608,12 @@ class Translator(object):
         source_segments = [segment]
         return self.translate(source_segments, translation_settings)
 
-    def translate_list(self, segments, translation_settings):
+    def translate_list(self, segments, translation_settings, aux_segments=None):
         """
         Translates a list of segments
         """
         source_segments = [s + '\n' if not s.endswith('\n') else s for s in segments]
-        return self.translate(source_segments, translation_settings)
+        return self.translate(source_segments, translation_settings, aux_source_segments=aux_segments)
 
     ### FUNCTIONS FOR WRITING THE RESULTS ###
 
@@ -558,13 +679,14 @@ class Translator(object):
             for translation in translations:
                 self.write_translation(output_file, translation, translation_settings)
 
-def main(input_file, output_file, decoder_settings, translation_settings):
+def main(input_file, output_file, decoder_settings, translation_settings, aux_input_file=None):
     """
     Translates a source language file (or STDIN) into a target language file
     (or STDOUT).
     """
     translator = Translator(decoder_settings)
-    translations = translator.translate_file(input_file, translation_settings)
+
+    translations = translator.translate_file(input_file, translation_settings, aux_input_object=aux_input_file)
 
     translator.write_translations(output_file, translations, translation_settings)
 
@@ -577,10 +699,20 @@ if __name__ == "__main__":
     parser = ConsoleInterfaceDefault()
     args = parser.parse_args()
     input_file = args.input
+
+    aux_input_file = None
+    multisource_type = None
+    # multisource
+    if args.aux_input:
+        aux_input_file = args.aux_input
+    if args.multisource_type:
+        multisource_type = args.multisource_type
+
     output_file = args.output
     decoder_settings = parser.get_decoder_settings()
     translation_settings = parser.get_translation_settings()
     # start logging
     level = logging.DEBUG if decoder_settings.verbose else logging.WARNING
     logging.basicConfig(level=level, format='%(levelname)s: %(message)s')
-    main(input_file, output_file, decoder_settings, translation_settings)
+    main(input_file, output_file, decoder_settings, translation_settings, \
+         aux_input_file=aux_input_file)

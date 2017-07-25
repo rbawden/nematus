@@ -57,6 +57,7 @@ class TranslationSettings(object):
         self.alignment_filename = None
         self.get_search_graph = False
         self.search_graph_filename = None
+        self.multisource_type = None
         if parsed_console_arguments:
             self.update_from(parsed_console_arguments)
 
@@ -87,6 +88,10 @@ class TranslationSettings(object):
         else:
             self.get_search_graph = False
             self.search_graph_filename = None
+
+        if args.multisource_type:
+            self.multisource_type = args.multisource_type
+
 
 
 class ServerSettings(object):

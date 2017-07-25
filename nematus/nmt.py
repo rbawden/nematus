@@ -996,11 +996,12 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
 
 
 
-# generate sample, either with stochastic sampling or beam search. Note that,
+# TODO: multisource
+# generate sample, either with stochastic sampling or beam search. Note that
 # this function iteratively calls f_init and f_next functions.
 def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                stochastic=True, argmax=False, return_alignment=False, suppress_unk=False,
-               return_hyp_graph=False):
+               return_hyp_graph=False, aux_x=None):
 
     # k is the beam size we have
     if k > 1 and argmax:
@@ -1039,9 +1040,18 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     ctx0 = [None]*num_models
     next_p = [None]*num_models
     dec_alphas = [None]*num_models
+
+    # multi-source (2 attention mechanisms)
+    if aux_x is not None:
+        dec_alphas2 = [None]*num_models # for multi-source
+        ctx0 = [None] * num_models
+
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
-        ret = f_init[i](x)
+        if aux_x is not None:
+            ret = f_init[i](x, aux_x)
+        else:
+            ret = f_init[i](x)
 
         # to more easily manipulate batch size, go from (layers, batch_size, dim) to (batch_size, layers, dim)
         ret[0] = numpy.transpose(ret[0], (1,0,2))
@@ -1826,18 +1836,24 @@ def train(dim_word=512,  # word vector dimensionality
                 for jj in xrange(numpy.minimum(5, x.shape[2])):
                     stochastic = True
                     x_current = x[:, :, jj][:, :, None]
+                    aux_x_current=None
+                    if multisource_type is not None:
+                        aux_x_current = aux_x[:, :, jj][:, :, None]
 
                     # remove padding
                     x_current = x_current[:,:x_mask.astype('int64')[:, jj].sum(),:]
+                    if multisource_type is not None:
+                        aux_x_current = aux_x_current[:,:aux_x_mask.astype('int64')[:, jj].sum(),:]
 
                     sample, score, sample_word_probs, alignment, hyp_graph = gen_sample([f_init], [f_next],
-                                               x_current,
-                                               trng=trng, k=1,
-                                               maxlen=30,
-                                               stochastic=stochastic,
-                                               argmax=False,
-                                               suppress_unk=False,
-                                               return_hyp_graph=False)
+                                                                                         x_current,
+                                                                                         trng=trng, k=1,
+                                                                                         maxlen=30,
+                                                                                         stochastic=stochastic,
+                                                                                         argmax=False,
+                                                                                         suppress_unk=False,
+                                                                                         return_hyp_graph=False,
+                                                                                         aux_x=aux_x_current)
                     print 'Source ', jj, ': ',
                     for pos in range(x.shape[1]):
                         if x[0, pos, jj] == 0:
@@ -1852,6 +1868,21 @@ def train(dim_word=512,  # word vector dimensionality
                                 sys.stdout.write('|')
                             else:
                                 sys.stdout.write(' ')
+                    if multisource_type is not None:
+                        print 'Auxiliary source ', jj, ': ',
+                        for pos in range(aux_x.shape[1]):
+                            if aux_x[0, pos, jj] == 0:
+                                break
+                            for factor in range(factors):
+                                vv = aux_x[factor, pos, jj]
+                                if vv in worddicts_r[factor]:
+                                    sys.stdout.write(worddicts_r[factor][vv])
+                                else:
+                                    sys.stdout.write('UNK')
+                                if factor + 1 < factors:
+                                    sys.stdout.write('|')
+                                else:
+                                    sys.stdout.write(' ')
                     print
                     print 'Truth ', jj, ' : ',
                     for vv in y[:, jj]:

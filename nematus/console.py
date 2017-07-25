@@ -83,6 +83,13 @@ class ConsoleInterfaceDefault(ConsoleInterface):
                                   action="store_true", help="Print probabilities of each word")
         self._parser.add_argument('--search_graph', '-sg',
                                   help="Output file for search graph rendered as PNG image")
+        # added multisource arguments
+        self._parser.add_argument('--aux_input', type=argparse.FileType('r'),
+                                  default=None, metavar='PATH',
+                                  help="Auxiliary input file")
+        self._parser.add_argument('--multisource_type', type=str,
+                                  default=None, choices=['att-concatenation', 'att-gate'],
+                                  help="Input file (default: None)")
 
     def get_translation_settings(self):
         """
