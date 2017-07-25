@@ -684,9 +684,6 @@ def build_multisource_model(tparams, options):
     cost = cost.reshape([y.shape[0], y.shape[1]])
     cost = (cost * y_mask).sum(0)
 
-    #theano.printing.pydotprint(cost, outfile="test_viz.png", var_with_name_simple=True)
-    #d3v.d3viz(cost, "/Users/rbawden/Documents/tools/nematus-multisource/test_viz.html")
-
     return trng, use_noise, x, x_mask, x2, x_mask2, y, y_mask, opt_ret, cost
 
 
@@ -775,9 +772,6 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     logging.info('Building f_next...')
     inps = [y, encoders[0].ctx, encoders[1].ctx, init_state]
     outs = [next_probs, next_sample, ret_state]
-
-    #theano.printing.debugprint(logit)
-    #theano.printing.pydotprint(ret_state.sum(), outfile="nextprobs" + ".png", var_with_name_simple=True)
 
     if return_alignment:
         outs.append(opt_ret['dec_alphas'])
@@ -888,7 +882,7 @@ def mrt_cost(cost, y_mask, options):
 # build a sampler that produces samples in one theano function
 def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
 
-    print("Building full sampler")
+    print('Building full sampler')
 
     dropout = dropout_constr(options, use_noise, trng, sampling=True)
 
@@ -1246,9 +1240,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
     if not return_alignment:
         alignment = [None for i in range(len(sample))]
-
-
-    print("return sample")
 
     return sample, sample_score, sample_word_probs, alignment, hyp_graph
 

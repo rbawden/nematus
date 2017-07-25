@@ -344,7 +344,6 @@ class Translator(object):
         # listen to queue in while loop, translate items
         while True:
             input_item = self._input_queue.get()
-            print(input_item)
             if input_item is None:
                 break
             idx = input_item.idx
@@ -397,11 +396,6 @@ class Translator(object):
         seq = input_item.seq
         aux_seq = input_item.aux_seq
 
-        print(seq)
-        print(str(aux_seq))
-        print(aux_seq[:2])
-
-        print("about to do gen sample")
         return gen_sample(fs_init, fs_next,
                           numpy.array(seq).T.reshape([len(seq[0]), len(seq), 1]),
                           trng=trng, k=k, maxlen=200,
@@ -416,7 +410,6 @@ class Translator(object):
         """
         Sample from model.
         """
-        print("_sample")
         # unpack input item attributes
         return_hyp_graph = input_item.return_hyp_graph
         return_alignment = input_item.return_alignment
