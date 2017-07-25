@@ -251,10 +251,7 @@ class Translator(object):
             deviceid = ''
             if self._device_list is not None and len(self._device_list) != 0:
                 deviceid = self._device_list[process_id % len(self._device_list)].strip()
-            processes[process_id] = Process(
-                target=self._start_worker,
-                args=(process_id, deviceid)
-                )
+            processes[process_id] = Process(target=self._start_worker, args=(process_id, deviceid))
             processes[process_id].start()
 
         self._processes = processes
@@ -266,7 +263,6 @@ class Translator(object):
         Loads models, sets theano shared variables and builds samplers.
         This entails irrevocable binding to a specific GPU.
         """
-
         from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
         from theano import shared
 
@@ -289,8 +285,7 @@ class Translator(object):
                 logging.warn("You provided an auxiliary input but this model is not multi-source. Ignoring extra input.")
 
             param_list = numpy.load(model).files
-            param_list = dict.fromkeys(
-                [key for key in param_list if not key.startswith('adam_')], 0)
+            param_list = dict.fromkeys([key for key in param_list if not key.startswith('adam_')], 0)
             params = load_params(model, param_list)
             tparams = init_theano_params(params)
 
@@ -349,22 +344,19 @@ class Translator(object):
         # listen to queue in while loop, translate items
         while True:
             input_item = self._input_queue.get()
-
+            print(input_item)
             if input_item is None:
                 break
             idx = input_item.idx
             request_id = input_item.request_id
-
             output_item = self._translate(process_id, input_item, trng, fs_init, fs_next, gen_sample)
             self._output_queue.put((request_id, idx, output_item))
-
         return
 
     def _translate(self, process_id, input_item, trng, fs_init, fs_next, gen_sample):
         """
         Actual translation (model sampling).
         """
-
         # unpack input item attributes
         normalization_alpha = input_item.normalization_alpha
         nbest = input_item.nbest
@@ -374,7 +366,10 @@ class Translator(object):
         logging.debug('{0} - {1}\n'.format(process_id, idx))
 
         # sample given an input sequence and obtain scores
-        sample, score, word_probs, alignment, hyp_graph = self._sample(input_item, trng, fs_init, fs_next, gen_sample)
+        if input_item.aux_seq is not None:
+            sample, score, word_probs, alignment, hyp_graph = self._multi_sample(input_item, trng, fs_init, fs_next, gen_sample)
+        else:
+            sample, score, word_probs, alignment, hyp_graph = self._sample(input_item, trng, fs_init, fs_next, gen_sample)
 
         # normalize scores according to sequence lengths
         if normalization_alpha:
@@ -385,16 +380,43 @@ class Translator(object):
         else:
             # return translation with lowest score only
             sidx = numpy.argmin(score)
-            output_item = sample[sidx], score[sidx], word_probs[
-                sidx], alignment[sidx], hyp_graph
+            output_item = sample[sidx], score[sidx], word_probs[sidx], alignment[sidx], hyp_graph
 
         return output_item
+
+
+    def _multi_sample(self, input_item, trng, fs_init, fs_next, gen_sample):
+        """
+        Sample from model.
+        """
+        # unpack input item attributes
+        return_hyp_graph = input_item.return_hyp_graph
+        return_alignment = input_item.return_alignment
+        suppress_unk = input_item.suppress_unk
+        k = input_item.k
+        seq = input_item.seq
+        aux_seq = input_item.aux_seq
+
+        print(seq)
+        print(str(aux_seq))
+        print(aux_seq[:2])
+
+        print("about to do gen sample")
+        return gen_sample(fs_init, fs_next,
+                          numpy.array(seq).T.reshape([len(seq[0]), len(seq), 1]),
+                          trng=trng, k=k, maxlen=200,
+                          stochastic=False, argmax=False,
+                          return_alignment=return_alignment,
+                          suppress_unk=suppress_unk,
+                          return_hyp_graph=return_hyp_graph,
+                          aux_x=numpy.array(aux_seq).T.reshape([len(aux_seq[0]), len(aux_seq), 1]))
+
 
     def _sample(self, input_item, trng, fs_init, fs_next, gen_sample):
         """
         Sample from model.
         """
-
+        print("_sample")
         # unpack input item attributes
         return_hyp_graph = input_item.return_hyp_graph
         return_alignment = input_item.return_alignment
@@ -444,6 +466,7 @@ class Translator(object):
                                    normalization_alpha=translation_settings.normalization_alpha,
                                    nbest=translation_settings.n_best,
                                    seq=x,
+                                   aux_seq=None,
                                    idx=idx,
                                    request_id=translation_settings.request_id)
 
@@ -468,19 +491,16 @@ class Translator(object):
             x = []
             x2 = []
             for w, w2 in zip(words, aux_words):
-
                 w = [self._word_dicts[i][f] if f in self._word_dicts[i] else 1 for (i, f) in enumerate(w.split('|'))]
                 w2 = [self._aux_word_dicts[i][f] if f in self._aux_word_dicts[i] else 1 for (i, f) in enumerate(w2.split('|'))]
-                for idx, word in enumerate([w, w2]):
-                    if len(w) != self._options[0]['factors']:
-                        logging.warning(
-                            str(idx)+': Expected {0} factors, but input word has {1}\n'.format(self._options[0]['factors'], len(word)))
+                for idx2, word in enumerate([w, w2]):
+                    if len(word) != self._options[0]['factors']:
+                        logging.warning(str(idx2)+': Expected {0} factors, but input word has {1}\n'.format(self._options[0]['factors'], len(word)))
                         for midx in xrange(self._num_processes):
                             self._processes[midx].terminate()
-                    sys.exit(1)
+                        sys.exit(1)
                 x.append(w)
-                x2.append(x2)
-                print("hi")
+                x2.append(w2)
 
             x += [[0] * self._options[0]['factors']]
             x2 += [[0] * self._options[0]['factors']]
@@ -496,12 +516,10 @@ class Translator(object):
                                    aux_seq=x2,
                                    idx=idx,
                                    request_id=translation_settings.request_id)
-
             self._input_queue.put(input_item)
             source_sentences.append(words)
             source_sentences2.append(words)
-            print("yup")
-        return idx + 1, (source_sentences, source_sentences2)
+        return idx+1, (source_sentences, source_sentences2)
 
     def _retrieve_jobs(self, num_samples, request_id, timeout=5):
         """

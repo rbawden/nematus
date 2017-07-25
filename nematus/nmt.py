@@ -780,11 +780,9 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     #theano.printing.pydotprint(ret_state.sum(), outfile="nextprobs" + ".png", var_with_name_simple=True)
 
     if return_alignment:
-        # TODO: 2nd alignment?
         outs.append(opt_ret['dec_alphas'])
         outs.append(opt_ret['dec_alphas2'])
 
-    # TODO: bugs after here...
     f_next = theano.function(inps, outs, name='f_next', profile=profile)
     logging.info('Done')
 
@@ -995,8 +993,7 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
     return f_sample
 
 
-
-# TODO: multisource
+# TODO: multi-source
 # generate sample, either with stochastic sampling or beam search. Note that
 # this function iteratively calls f_init and f_next functions.
 def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
@@ -1033,6 +1030,10 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     if return_alignment:
         hyp_alignment = [[] for _ in xrange(live_k)]
 
+        # multi-source
+        if aux_x is not None:
+            aux_hyp_alignment = [[] for _ in xrange(live_k)]
+
     # for ensemble decoding, we keep track of states and probability distribution
     # for each model in the ensemble
     num_models = len(f_init)
@@ -1043,8 +1044,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
     # multi-source (2 attention mechanisms)
     if aux_x is not None:
-        dec_alphas2 = [None]*num_models # for multi-source
-        ctx0 = [None] * num_models
+        ctx1 = [None] * num_models
+        dec_alphas2 = [None] * num_models  # for multi-source
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
@@ -1058,23 +1059,39 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
         next_state[i] = numpy.tile( ret[0] , (live_k, 1, 1))
         ctx0[i] = ret[1]
+        if aux_x is not None:
+            ctx1[i] = ret[2]
     next_w = -1 * numpy.ones((live_k,)).astype('int64')  # bos indicator
 
     # x is a sequence of word ids followed by 0, eos id
     for ii in xrange(maxlen):
         for i in xrange(num_models):
             ctx = numpy.tile(ctx0[i], [live_k, 1])
+            # multi-source
+            if aux_x is not None:
+                aux_ctx = numpy.tile(ctx1[i], [live_k, 1])
 
             # for theano function, go from (batch_size, layers, dim) to (layers, batch_size, dim)
             next_state[i] = numpy.transpose(next_state[i], (1,0,2))
 
-            inps = [next_w, ctx, next_state[i]]
+            # multi-source
+            if aux_x is not None:
+                inps = [next_w, ctx, aux_ctx, next_state[i]]
+            else:
+                inps = [next_w, ctx, next_state[i]]
             ret = f_next[i](*inps)
 
+            # TODO: do multi-souce from here!
+
+            #print(ret)
             # dimension of dec_alpha (k-beam-size, number-of-input-hidden-units)
             next_p[i], next_w_tmp, next_state[i] = ret[0], ret[1], ret[2]
             if return_alignment:
                 dec_alphas[i] = ret[3]
+
+                # multi-source
+                if aux_x is not None:
+                    dec_alphas2[i] = ret[4]
 
             # to more easily manipulate batch size, go from (layers, batch_size, dim) to (batch_size, layers, dim)
             next_state[i] = numpy.transpose(next_state[i], (1,0,2))
@@ -1097,7 +1114,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
                 for idx,nw in enumerate(nws):
                     hyp_samples[idx].append(nw)
-
 
                 hyp_states=[]
                 for ti in xrange(live_k):
@@ -1152,11 +1168,16 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             new_hyp_scores = numpy.zeros(k-dead_k).astype(floatX)
             new_word_probs = []
             new_hyp_states = []
+
+            # TODO: do this for multi-source too!
             if return_alignment:
                 # holds the history of attention weights for each time step for each of the surviving hypothesis
                 # dimensions (live_k * target_words * source_hidden_units]
                 # at each time step we append the attention weights corresponding to the current target word
                 new_hyp_alignment = [[] for _ in xrange(k-dead_k)]
+
+                if aux_x is not None:
+                    new_hyp_alignment = [[] for _ in xrange(k-dead_k)]
 
             # ti -> index of k-best hypothesis
             for idx, [ti, wi] in enumerate(zip(trans_indices, word_indices)):
@@ -1225,6 +1246,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
     if not return_alignment:
         alignment = [None for i in range(len(sample))]
+
+
+    print("return sample")
 
     return sample, sample_score, sample_word_probs, alignment, hyp_graph
 
