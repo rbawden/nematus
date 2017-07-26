@@ -525,8 +525,8 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
         params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx+dimctx2, dimctx, scale=0.01)
         params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx,)).astype(floatX)
         if options['layer_normalisation']:
-            params[pp(prefix, 'W_projcomb_att_lnb' + suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
-            params[pp(prefix, 'W_projcomb_att_lns' + suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'W_projcomb_att_lnb')] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'W_projcomb_att_lns')] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
     elif options["multisource_type"]=="att-gate":
         1#params[pp(prefix, 'W_att-gate-sm1')] =
 
@@ -889,7 +889,7 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + \
                             tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
-                ctx_ = layer_norm(pstate_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
+                ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
                                      tparams[pp(prefix, 'W_projcomb_att_lns')])
 
         # apply a context gate between the two different contexts
