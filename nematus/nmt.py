@@ -522,7 +522,6 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                             dropout_probability=options['dropout_hidden'],
                             prefix='ff_logit', activ='linear', W=logit_W, followed_by_softmax=True)
 
-
     return logit, opt_ret, ret_state
 
 
