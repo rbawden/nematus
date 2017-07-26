@@ -114,7 +114,7 @@ def init_theano_params(params):
     tparams["ff_logit_prev_b"] = theano.shared(params["ff_logit_prev_b"], name="ff_logit_prev_b")
     tparams["ff_logit_ctx_W"] = theano.shared(params["ff_logit_ctx_W"], name="ff_logit_ctx_W")
     tparams["ff_logit_ctx_b"] = theano.shared(params["ff_logit_ctx_b"], name="ff_logit_ctx_b")
-    tparams["ff_logit_W"] = theano.shared(params["ff_logit_W"], name="ff_logit_W")
+    #tparams["ff_logit_W"] = theano.shared(params["ff_logit_W"], name="ff_logit_W")
     tparams["ff_logit_b"] = theano.shared(params["ff_logit_b"], name="ff_logit_b")
     
     

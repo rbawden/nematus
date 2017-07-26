@@ -250,7 +250,7 @@ class TextIterator:
 
                 if len(source) >= self.batch_size or \
                         len(target) >= self.batch_size or \
-                        len(aux_source) >= self.batch_size:
+                        (self.multisource and len(aux_source) >= self.batch_size):
                     break
         except IOError:
             self.end_of_data = True
