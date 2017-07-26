@@ -496,15 +496,17 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
         # TODO: add multisource
         if options['layer_normalisation']:
-            # layer-normalization parameters
-            params[pp(prefix, 'W_lnb'+suff)] = scale_add * numpy.ones((2 * dim)).astype(floatX)
-            params[pp(prefix, 'W_lns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-            params[pp(prefix, 'U_lnb'+suff)] = scale_add * numpy.ones((2 * dim)).astype(floatX)
-            params[pp(prefix, 'U_lns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-            params[pp(prefix, 'Wx_lnb'+suff)] = scale_add * numpy.ones((1 * dim)).astype(floatX)
-            params[pp(prefix, 'Wx_lns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
-            params[pp(prefix, 'Ux_lnb'+suff)] = scale_add * numpy.ones((1 * dim)).astype(floatX)
-            params[pp(prefix, 'Ux_lns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+            if "encoder" in prefix or suff == "":
+                # layer-normalization parameters
+                params[pp(prefix, 'W_lnb'+suff)] = scale_add * numpy.ones((2 * dim)).astype(floatX)
+                params[pp(prefix, 'W_lns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+                params[pp(prefix, 'U_lnb'+suff)] = scale_add * numpy.ones((2 * dim)).astype(floatX)
+                params[pp(prefix, 'U_lns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+                params[pp(prefix, 'Wx_lnb'+suff)] = scale_add * numpy.ones((1 * dim)).astype(floatX)
+                params[pp(prefix, 'Wx_lns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+                params[pp(prefix, 'Ux_lnb'+suff)] = scale_add * numpy.ones((1 * dim)).astype(floatX)
+                params[pp(prefix, 'Ux_lns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+
             params[pp(prefix, 'W_comb_att_lnb'+suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
             params[pp(prefix, 'W_comb_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
             params[pp(prefix, 'Wc_att_lnb'+suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
