@@ -401,7 +401,6 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     scale_add = 0.0
     scale_mul = 1.0
 
-
     W = numpy.concatenate([norm_weight(nin, dim),
                            norm_weight(nin, dim)], axis=1)
     params[pp(prefix, 'W')] = W
