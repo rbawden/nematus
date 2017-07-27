@@ -584,7 +584,7 @@ EncoderItems = namedtuple('EncoderItems', 'x_mask x ctx ctx_mean')
 
 # build a training model
 def build_multisource_model(tparams, options):
-    logging.info("Building multisource model")
+    logging.info("Building multi-source model")
 
     trng = RandomStreams(1234)
     use_noise = theano.shared(numpy_floatX(0.))
@@ -1284,6 +1284,56 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
     return numpy.array(probs), alignments_json
 
 
+# calculate the log probablities on a given corpus using translation model (multi-source version
+def multi_pred_probs(f_log_probs, prepare_multi_data, options, iterator, verbose=True,
+                     normalization_alpha=0.0, alignweights=False):
+    probs = []
+    n_done = 0
+
+    alignments_json = []
+    aux_alignments_json = []
+
+    for (x, aux_x), y in iterator:
+        #ensure consistency in number of factors
+        if len(x[0][0]) != options['factors']:
+            logging.error('Mismatch between number of factors in settings ({0}), and number in validation corpus ({1})\n'.format(options['factors'], len(x[0][0])))
+            sys.exit(1)
+        if len(aux_x[0][0]) != options['factors']:
+            logging.error(
+                'Mismatch between number of factors in settings ({0}), and number in validation corpus ({1})\n'.format(
+                    options['factors'], len(aux_x[0][0])))
+            sys.exit(1)
+
+        n_done += len(x)
+
+        x, x_mask, aux_x, aux_x_mask, y, y_mask = prepare_multi_data(x, aux_x,y,
+                                                                     n_words_src=options['n_words_src'],
+                                                                     n_words=options['n_words'],
+                                                                     n_factors=options['factors'])
+
+        ### in optional save weights mode.
+        if alignweights:
+            pprobs, attention, aux_attention = f_log_probs(x, x_mask, aux_x, aux_x_mask, y, y_mask)
+            for jdata in get_alignments(attention, x_mask, y_mask):
+                alignments_json.append(jdata)
+            for jdata in get_alignments(aux_attention, aux_x_mask, y_mask):
+                aux_alignments_json.append(jdata)
+        else:
+            pprobs = f_log_probs(x, x_mask, aux_x, aux_x_mask, y, y_mask)
+
+        # normalize scores according to output length
+        if normalization_alpha:
+            adjusted_lengths = numpy.array([numpy.count_nonzero(s) ** normalization_alpha for s in y_mask.T])
+            pprobs /= adjusted_lengths
+
+        for pp in pprobs:
+            probs.append(pp)
+
+        logging.debug('%d samples computed' % (n_done))
+
+    return numpy.array(probs), alignments_json, aux_alignments_json
+
+
 def train(dim_word=512,  # word vector dimensionality
           dim=1000,  # the number of LSTM units
           enc_depth=1, # number of layers in the encoder
@@ -1487,7 +1537,7 @@ def train(dim_word=512,  # word vector dimensionality
                             batch_size=valid_batch_size,
                             use_factor=(factors>1),
                             maxlen=maxlen,
-                            aux_source=aux_source,
+                            aux_source=aux_valid_source,
                             aux_source_dicts=aux_source_dicts)
     else:
         valid = None
@@ -1708,6 +1758,7 @@ def train(dim_word=512,  # word vector dimensionality
 
                 cost_sum += cost
 
+            # TODO: multi-source
             elif model_options['objective'] == 'MRT':
                 assert maxlen is not None and maxlen > 0
 
@@ -1925,8 +1976,12 @@ def train(dim_word=512,  # word vector dimensionality
             # validate model on validation set and early stop if necessary
             if valid is not None and validFreq and numpy.mod(training_progress.uidx, validFreq) == 0:
                 use_noise.set_value(0.)
-                valid_errs, alignment = pred_probs(f_log_probs, prepare_data,
-                                        model_options, valid)
+                if multisource_type is not None:
+                    valid_errs, alignment, aux_alignment = multi_pred_probs(f_log_probs, prepare_multi_data,
+                                                                            model_options, valid)
+                else:
+                    valid_errs, alignment = pred_probs(f_log_probs, prepare_data, model_options, valid)
+
                 valid_err = valid_errs.mean()
                 training_progress.history_errs.append(float(valid_err))
 
@@ -2005,8 +2060,12 @@ def train(dim_word=512,  # word vector dimensionality
 
     if valid is not None:
         use_noise.set_value(0.)
-        valid_errs, alignment = pred_probs(f_log_probs, prepare_data,
-                                        model_options, valid)
+        if multisource_type is not None:
+            valid_errs, alignment, aux_alignment = pred_probs(f_log_probs, prepare_multi_data,
+                                                              model_options, valid)
+        else:
+            valid_errs, alignment = pred_probs(f_log_probs, prepare_multi_data,
+                                               model_options, valid)
         valid_err = valid_errs.mean()
 
         logging.info('Valid {}'.format(valid_err))
