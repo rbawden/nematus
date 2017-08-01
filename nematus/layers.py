@@ -826,6 +826,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     # used for context gate (bias to be added later)
     if options['multisource_type'] == "att-gate":
         state_belowy = tensor.dot(state_below * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ym1')))
+    else:
+        state_belowy = None
 
         # print("state belowy = ", state_belowy.tag.test_value.shape)
 
