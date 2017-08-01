@@ -383,7 +383,6 @@ class Translator(object):
 
         return output_item
 
-
     def _multi_sample(self, input_item, trng, fs_init, fs_next, gen_sample):
         """
         Sample from model.
@@ -403,8 +402,7 @@ class Translator(object):
                           return_alignment=return_alignment,
                           suppress_unk=suppress_unk,
                           return_hyp_graph=return_hyp_graph,
-                          aux_x=numpy.array(aux_seq).T.reshape([len(aux_seq[0]), len(aux_seq), 1]))
-
+                          extras_xs=[numpy.array(aux_seq).T.reshape([len(aux_seq[0]), len(aux_seq), 1])])
 
     def _sample(self, input_item, trng, fs_init, fs_next, gen_sample):
         """
