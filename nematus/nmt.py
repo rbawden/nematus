@@ -1359,8 +1359,8 @@ def multi_pred_probs(f_log_probs, prepare_multi_data, options, iterator, verbose
                                                     n_factors=options['factors'])
 
         ### in optional save weights mode.
+        inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
         if alignweights:
-            inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
             pprobs, attentions = f_log_probs(*inps)
             for i, attention in enumerate(attentions):
                 alignment_json = []
