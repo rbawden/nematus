@@ -10,6 +10,7 @@ from collections import OrderedDict
 import theano
 import theano.tensor as tensor
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
+import theano.typed_list
 
 from initializers import *
 from util import *
@@ -22,7 +23,7 @@ from collections import OrderedDict, namedtuple
 # layers: 'name': ('parameter initializer', 'feedforward')
 layers = {'ff': ('param_init_fflayer', 'fflayer'),
           'gru': ('param_init_gru', 'gru_layer'),
-          'multi_gru_cond': ('param_init_gru_cond', 'multi_gru_cond_layer'),
+          'bi_gru_cond': ('param_init_gru_cond', 'bi_gru_cond_layer'),
           'gru_cond': ('param_init_gru_cond', 'gru_cond_layer'),
           'embedding': ('param_init_embedding_layer', 'embedding_layer')
           }
@@ -381,26 +382,40 @@ def gru_layer(tparams, state_below, options, dropout, prefix='gru',
 
 # Conditional GRU layer with Attention
 def param_init_gru_cond(options, params, prefix='gru_cond',
-                        nin=None, dim=None, dimctx=None, dimctx2=None,
+                        nin=None, dim=None, dimctx=None,
                         nin_nonlin=None, dim_nonlin=None,
                         recurrence_transition_depth=2):
+
+    # number of encoders
+    num_encoders = 1 + len(options["extra_sources"])
+
     if nin is None:
         nin = options['dim']
     if dim is None:
         dim = options['dim']
-    if dimctx is None:
-        dimctx = options['dim']
-    # auxiliary context of same dimension for now...
-    if dimctx2 is None:
-        dimctx2 = options['dim']
+
+
+    # ensure that there are as many ctx dimensions as encoders
+    for i in range(num_encoders):
+        if len(dimctx) <= i or dimctx[i] is None:
+            if len(dimctx) <= i:
+                dimctx.append(options['dim'])
+            else:
+                dimctx[i] = options['dim']
+
     if nin_nonlin is None:
         nin_nonlin = nin
     if dim_nonlin is None:
         dim_nonlin = dim
 
+
+    # print('nin_nonlin = ', nin_nonlin)
+    # print('dim_nonlin = ', dim_nonlin)
+
     scale_add = 0.0
     scale_mul = 1.0
 
+    # parameters for statebelow and statebelowx
     W = numpy.concatenate([norm_weight(nin, dim),
                            norm_weight(nin, dim)], axis=1)
     params[pp(prefix, 'W')] = W
@@ -437,9 +452,9 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
         # context to LSTM
         if i == 0:
-            Wc = norm_weight(dimctx, dim * 2)
+            Wc = norm_weight(dimctx[0], dim * 2)
             params[pp(prefix, 'Wc' + suffix)] = Wc
-            Wcx = norm_weight(dimctx, dim)
+            Wcx = norm_weight(dimctx[0], dim)
             params[pp(prefix, 'Wcx' + suffix)] = Wcx
             if options['layer_normalisation']:
                 params[pp(prefix, 'Wc%s_lnb') % suffix] = scale_add * numpy.ones((2 * dim)).astype(floatX)
@@ -450,86 +465,77 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
                 params[pp(prefix, 'Wc%s_wns') % suffix] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
                 params[pp(prefix, 'Wcx%s_wns') % suffix] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
 
-    # attention: combined -> hidden
-    W_comb_att = norm_weight(dim, dimctx)
-    params[pp(prefix, 'W_comb_att')] = W_comb_att
-
-    # attention: context -> hidden
-    Wc_att = norm_weight(dimctx)
-    params[pp(prefix, 'Wc_att')] = Wc_att
-
-    # attention: hidden bias
-    b_att = numpy.zeros((dimctx,)).astype(floatX)
-    params[pp(prefix, 'b_att')] = b_att
-
-    # attention:
-    U_att = norm_weight(dimctx, 1)
-    params[pp(prefix, 'U_att')] = U_att
-    c_att = numpy.zeros((1,)).astype(floatX)
-    params[pp(prefix, 'c_tt')] = c_att
-
-    numencoders = 1
-    if options["multisource_type"] is not None:
-        numencoders += 1
-    # multisource (so an auxiliary attention mechanism)
-    for i in range(numencoders):
-        if i==0: suff=""
-        else: suff=str(i+1)
+    # initialise parameters for each input source (multi-source)
+    for i in range(num_encoders):
+        if num_encoders > 1:
+            suff = str(i)
+        else:
+            suff = ''
 
         # attention: combined -> hidden
-        W_comb_att = norm_weight(dim, dimctx)
-        params[pp(prefix, 'W_comb_att'+suff)] = W_comb_att
+        W_comb_att = norm_weight(dim, dimctx[i])
+        params[pp(prefix, 'W_comb_att' + suff)] = W_comb_att
 
         # attention: context -> hidden
-        Wc_att = norm_weight(dimctx)
-        params[pp(prefix, 'Wc_att'+suff)] = Wc_att
+        Wc_att = norm_weight(dimctx[i])
+        params[pp(prefix, 'Wc_att' + suff)] = Wc_att
 
         # attention: hidden bias
-        b_att = numpy.zeros((dimctx,)).astype(floatX)
-        params[pp(prefix, 'b_att'+suff)] = b_att
+        b_att = numpy.zeros((dimctx[i],)).astype(floatX)
+        params[pp(prefix, 'b_att' + suff)] = b_att
 
         # attention:
-        U_att = norm_weight(dimctx, 1)
-        params[pp(prefix, 'U_att'+suff)] = U_att
+        U_att = norm_weight(dimctx[i], 1)
+        params[pp(prefix, 'U_att' + suff)] = U_att
         c_att = numpy.zeros((1,)).astype(floatX)
-        params[pp(prefix, 'c_tt'+suff)] = c_att
+        params[pp(prefix, 'c_tt' + suff)] = c_att
 
-        # TODO: add multisource
+        # only initialise these once (and no suffix)
         if options['layer_normalisation']:
-            if "encoder" in prefix or suff == "":
+            if "encoder" in prefix or i == 0:
                 # layer-normalization parameters
-                params[pp(prefix, 'W_lnb'+suff)] = scale_add * numpy.ones((2 * dim)).astype(floatX)
-                params[pp(prefix, 'W_lns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-                params[pp(prefix, 'U_lnb'+suff)] = scale_add * numpy.ones((2 * dim)).astype(floatX)
-                params[pp(prefix, 'U_lns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-                params[pp(prefix, 'Wx_lnb'+suff)] = scale_add * numpy.ones((1 * dim)).astype(floatX)
-                params[pp(prefix, 'Wx_lns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
-                params[pp(prefix, 'Ux_lnb'+suff)] = scale_add * numpy.ones((1 * dim)).astype(floatX)
-                params[pp(prefix, 'Ux_lns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+                params[pp(prefix, 'W_lnb')] = scale_add * numpy.ones((2 * dim)).astype(floatX)
+                params[pp(prefix, 'W_lns')] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+                params[pp(prefix, 'U_lnb')] = scale_add * numpy.ones((2 * dim)).astype(floatX)
+                params[pp(prefix, 'U_lns')] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+                params[pp(prefix, 'Wx_lnb')] = scale_add * numpy.ones((1 * dim)).astype(floatX)
+                params[pp(prefix, 'Wx_lns')] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+                params[pp(prefix, 'Ux_lnb')] = scale_add * numpy.ones((1 * dim)).astype(floatX)
+                params[pp(prefix, 'Ux_lns')] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
 
-            params[pp(prefix, 'W_comb_att_lnb'+suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
-            params[pp(prefix, 'W_comb_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-            params[pp(prefix, 'Wc_att_lnb'+suff)] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
-            params[pp(prefix, 'Wc_att_lns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
+            params[pp(prefix, 'W_comb_att_lnb' + suff)] = scale_add * numpy.ones((1 * dimctx[i])).astype(floatX)
+            params[pp(prefix, 'W_comb_att_lns' + suff)] = scale_mul * numpy.ones((1 * dimctx[i])).astype(floatX)
+            params[pp(prefix, 'Wc_att_lnb' + suff)] = scale_add * numpy.ones((1 * dimctx[i])).astype(floatX)
+            params[pp(prefix, 'Wc_att_lns' + suff)] = scale_mul * numpy.ones((1 * dimctx[i])).astype(floatX)
 
-        if options['weight_normalisation'] :
-            params[pp(prefix, 'W_wns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-            params[pp(prefix, 'U_wns'+suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
-            params[pp(prefix, 'Wx_wns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
-            params[pp(prefix, 'Ux_wns'+suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
-            params[pp(prefix, 'W_comb_att_wns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-            params[pp(prefix, 'Wc_att_wns'+suff)] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-            params[pp(prefix, 'U_att_wns'+suff)] = scale_mul * numpy.ones((1 * 1)).astype(floatX)
+        if options['weight_normalisation']:
+            params[pp(prefix, 'W_wns' + suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+            params[pp(prefix, 'U_wns' + suff)] = scale_mul * numpy.ones((2 * dim)).astype(floatX)
+            params[pp(prefix, 'Wx_wns' + suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+            params[pp(prefix, 'Ux_wns' + suff)] = scale_mul * numpy.ones((1 * dim)).astype(floatX)
+            params[pp(prefix, 'W_comb_att_wns' + suff)] = scale_mul * numpy.ones((1 * dimctx[i])).astype(floatX)
+            params[pp(prefix, 'Wc_att_wns' + suff)] = scale_mul * numpy.ones((1 * dimctx[i])).astype(floatX)
+            params[pp(prefix, 'U_att_wns' + suff)] = scale_mul * numpy.ones((1 * 1)).astype(floatX)
 
-    if options["multisource_type"]=="att-concatenation":
+    # parameters still used for decoder initialisation in methods other than att-concat
+    if options['multisource_type'] in ('att-concat', 'att-gate'):
         # linear projection
-        params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx+dimctx2, dimctx, scale=0.01)
-        params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx,)).astype(floatX)
+        params[pp(prefix, 'W_projcomb_att')] = norm_weight(sum(dimctx), dimctx[0], scale=0.01)
+        params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx[0],)).astype(floatX)
         if options['layer_normalisation']:
-            params[pp(prefix, 'W_projcomb_att_lnb')] = scale_add * numpy.ones((1 * dimctx)).astype(floatX)
-            params[pp(prefix, 'W_projcomb_att_lns')] = scale_mul * numpy.ones((1 * dimctx)).astype(floatX)
-    elif options["multisource_type"]=="att-gate":
-        1#params[pp(prefix, 'W_att-gate-sm1')] =
+            params[pp(prefix, 'W_projcomb_att_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
+            params[pp(prefix, 'W_projcomb_att_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
+
+    # TODO: check dimensions
+    if options["multisource_type"] == "att-gate":
+        params[pp(prefix, 'W_att-gate-ym1')] = norm_weight(nin_nonlin, dimctx[0])
+        params[pp(prefix, 'W_att-gate-sm1')] = norm_weight(dim_nonlin, dimctx[0])
+        params[pp(prefix, 'W_att-gate-ctx1')] = norm_weight(dimctx[0])
+        params[pp(prefix, 'W_att-gate-ctx2')] = norm_weight(dimctx[1])
+        params[pp(prefix, 'b_att-gate')] = numpy.zeros((dimctx[0],)).astype(floatX)
+        if options['layer_normalisation']:
+            params[pp(prefix, 'W_att-gate_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
+            params[pp(prefix, 'W_att-gate_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
 
     return params
 
@@ -726,27 +732,28 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
 Attention = namedtuple('Attention', 'ctx_ pctx__ alpha')
 
-## mcg
-def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
-                   mask=None, context=None, one_step=False,
-                   init_memory=None, init_state=None,
-                   context_mask=None,
-                   dropout_probability_below=0,
-                   dropout_probability_ctx=0,
-                   dropout_probability_rec=0,
-                   pctx_=None,
-                   recurrence_transition_depth=2,
-                   truncate_gradient=-1,
-                   profile=False,
-                   aux_context=None,
-                   aux_pctx_=None,
-                   aux_context_mask=None,
-                   **kwargs):
 
-    assert context and aux_context, 'Contexts must be provided'
+# Conditional GRU layer for multi-source inputs
+def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
+                         mask=None, context=None, one_step=False,
+                         init_memory=None, init_state=None,
+                         context_mask=None,
+                         dropout_probability_below=0,
+                         dropout_probability_ctx=0,
+                         dropout_probability_rec=0,
+                         pctx_=None,
+                         recurrence_transition_depth=2,
+                         truncate_gradient=-1,
+                         profile=False,
+                         extra_context=None,
+                         extra_pctx_=None,
+                         extra_context_mask=None,
+                         **kwargs):
+    # check inputs for multi-source inputs
+    assert context and extra_context, 'At least two contexts must be provided'
 
     if one_step:
-        assert init_state, 'previous state must be provided'
+        assert init_state, 'Previous state must be provided'
 
     nsteps = state_below.shape[0]
     if state_below.ndim == 3:
@@ -764,7 +771,6 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
     rec_dropout = dropout((n_samples, dim), dropout_probability_rec, num=1 + 2 * recurrence_transition_depth)
 
-
     # utility function to look up parameters and apply weight normalization if enabled
     def wn(param_name):
         param = tparams[param_name]
@@ -773,31 +779,38 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         else:
             return param
 
-
     below_dropout = dropout((n_samples, dim_below), dropout_probability_below, num=2)
-    ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=4)
-    aux_ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=4)
 
     # initial/previous state
     if init_state is None:
         init_state = tensor.zeros((n_samples, dim))
 
-    # projected context
-    assert context.ndim == 3, 'Context must be 3-d: #annotation x #sample x dim'
+    assert context.ndim == 3, 'Context 1 must be 3-d: #annotation x #sample x dim'
+    assert extra_context.ndim == 3, 'Context 1 must be 3-d: #annotation x #sample x dim'
+
+    # first context
+    ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=4)
     if pctx_ is None:
-        pctx_ = tensor.dot(context * ctx_dropout[0], wn(pp(prefix, 'Wc_att'))) + \
-                tparams[pp(prefix, 'b_att')]
+        pctx_ = tensor.dot(context * ctx_dropout[0], wn(pp(prefix, 'Wc_att0'))) + tparams[pp(prefix, 'b_att0')]
     if options['layer_normalisation']:
-        pctx_ = layer_norm(pctx_, tparams[pp(prefix, 'Wc_att_lnb')], tparams[pp(prefix, 'Wc_att_lns')])
-
-    # projected context 2
-    assert aux_context.ndim == 3, 'Context must be 3-d: #annotation x #sample x dim'
-    if aux_pctx_ is None:
-        aux_pctx_ = tensor.dot(aux_context * aux_ctx_dropout[0], wn(pp(prefix, 'Wc_att2'))) + \
-                tparams[pp(prefix, 'b_att2')]
+        pctx_ = layer_norm(pctx_, tparams[pp(prefix, 'Wc_att_lnb0')],
+                                   tparams[pp(prefix, 'Wc_att_lns0')])
+    # second context
+    extra_ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=4)
+    if extra_pctx_ is None:
+        extra_pctx_ = tensor.dot(extra_context * extra_ctx_dropout[0], wn(pp(prefix, 'Wc_att1'))) + \
+                      tparams[pp(prefix, 'b_att1')]
     if options['layer_normalisation']:
-        aux_pctx_ = layer_norm(aux_pctx_, tparams[pp(prefix, 'Wc_att_lnb2')], tparams[pp(prefix, 'Wc_att_lns2')])
+        extra_pctx_ = layer_norm(extra_pctx_, tparams[pp(prefix, 'Wc_att_lnb1')],
+                           tparams[pp(prefix, 'Wc_att_lns1')])
 
+    # concatenate context and extra-contexts to facilitate loops
+    all_ctx_dropouts = [ctx_dropout, extra_ctx_dropout]
+    all_pctxs_ = [pctx_, extra_pctx_]
+    all_contexts = [context, extra_context]
+    all_context_masks = [context_mask, extra_context_mask]
+
+    # auxiliary slice function
     def _slice(_x, n, dim):
         if _x.ndim == 3:
             return _x[:, :, n * dim:(n + 1) * dim]
@@ -809,17 +822,27 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     state_below_ = tensor.dot(state_below * below_dropout[1], wn(pp(prefix, 'W'))) + \
                    tparams[pp(prefix, 'b')]
 
-    # used for context gate
+    # print("state below", state_below.tag.test_value.shape)
+    # used for context gate (bias to be added later)
     if options['multisource_type'] == "att-gate":
-        state_belowy = tensor.dot(state_below * rec_dropout[2], wn(pp(prefix, 'W_att-gate-y-1'))) + \
-                                tparams[pp(prefix, 'b_att-gate-y-1')]
+        state_belowy = tensor.dot(state_below * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ym1')))
+
+        # print("state belowy = ", state_belowy.tag.test_value.shape)
 
     # ----------- beginning of _step_slice -----------
     # step function (to be used by scan)
-    def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, aux_alpha_, pctx_, aux_pctx_, cc_, aux_cc_, rec_dropout, ctx_dropout, aux_ctx_dropout):
+    # TODO: cannot pass a list here, so only 2 inputs are possible for now
+    def _step_slice(m_, x_, xx_, xxx_, h_, ctx_, alpha_, extra_alpha_, pctxs_, ccs_, rec_dropout, ctx_dropouts):
+
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
             xx_ = layer_norm(xx_, tparams[pp(prefix, 'Wx_lnb')], tparams[pp(prefix, 'Wx_lns')])
+
+        # print('in step slice')
+        # print("x_", x_.tag.test_value.shape)
+        # print("xx_", xx_.tag.test_value.shape)
+
+        # print("h_", h_.tag.test_value.shape)
 
         # ------------------------ GRU 1 ------------------------
         # compute of r'_j and z'_j (reset and update activations)
@@ -829,9 +852,14 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         preact1 += x_
         preact1 = tensor.nnet.sigmoid(preact1)
 
+        # print("preact1", preact1.tag.test_value.shape)
+
         # reset and update gates
         r1 = _slice(preact1, 0, dim)
         u1 = _slice(preact1, 1, dim)
+
+        # print("r1", r1.tag.test_value.shape)
+        # print("u1", u1.tag.test_value.shape)
 
         # proposed intermediate representation ^s'_j
         # gate r'_j applied to (U' * s_{j-1})
@@ -842,85 +870,89 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         preactx1 += xx_
         h1 = tensor.tanh(preactx1)
 
+        # print("h1", h1.tag.test_value.shape)
+        # print("preactx1", preactx1.tag.test_value.shape)
+
         # intermediate representation s'_j (here = h1) (using the update gate)
         h1 = u1 * h_ + (1. - u1) * h1
         h1 = m_[:, None] * h1 + (1. - m_)[:, None] * h_
 
-        # -------------- attention mechanism --------------
-        # calculate e_ij (here pctx__)
-        pstate_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att')))
-        if options['layer_normalisation']:
-            pstate_ = layer_norm(pstate_, tparams[pp(prefix, 'W_comb_att_lnb')], tparams[pp(prefix, 'W_comb_att_lns')])
-        pctx__ = pctx_ + pstate_[None, :, :]
-        # pctx__ += xc_
-        pctx__ = tensor.tanh(pctx__)
+        pstates_, pctxs__, alphas, ctxs_ = [], [], [], []
 
-        # multiply by weight vector
-        alpha = tensor.dot(pctx__ * ctx_dropout[1], wn(pp(prefix, 'U_att'))) + tparams[pp(prefix, 'c_tt')]
-        alpha = alpha.reshape([alpha.shape[0], alpha.shape[1]])
-        # normalise
-        alpha = tensor.exp(alpha - alpha.max(0, keepdims=True))
-        if context_mask:
-            alpha = alpha * context_mask
-        alpha = alpha / alpha.sum(0, keepdims=True)
-        ctx_ = (cc_ * alpha[:, :, None]).sum(0)  # current context
+        # -------------- attention mechanism(s) --------------
+        # fixed at 2 for now...
+        for i in range(2):
+            # suffix for parameters
+            suff = str(i)
 
-        # -------------- auxiliary attention mechanism --------------
-        aux_pstate_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att2')))
-        if options['layer_normalisation']:
-            aux_pstate_ = layer_norm(aux_pstate_, tparams[pp(prefix, 'W_comb_att_lnb2')], tparams[pp(prefix, 'W_comb_att_lns2')])
-        aux_pctx__ = aux_pctx_ + aux_pstate_[None, :, :]
-        # pctx__ += xc_
-        aux_pctx__ = tensor.tanh(aux_pctx__)
-        aux_alpha = tensor.dot(aux_pctx__ * aux_ctx_dropout[1], wn(pp(prefix, 'U_att2'))) + tparams[pp(prefix, 'c_tt2')]
-        aux_alpha = aux_alpha.reshape([aux_alpha.shape[0], aux_alpha.shape[1]])
-        aux_alpha = tensor.exp(aux_alpha - aux_alpha.max(0, keepdims=True))
-        if aux_context_mask:
-            aux_alpha = aux_alpha * aux_context_mask
-        aux_alpha = aux_alpha / aux_alpha.sum(0, keepdims=True)
-        aux_ctx_ = (aux_cc_ * aux_alpha[:, :, None]).sum(0)  # current context
+            # calculate e_ij (here pctx__)
+            pstates_.append(tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att' + suff))))
+            if options['layer_normalisation']:
+                pstates_[i] = layer_norm(pstates_[i], tparams[pp(prefix, 'W_comb_att_lnb' + suff)],
+                                         tparams[pp(prefix, 'W_comb_att_lns' + suff)])
+            pctxs__.append(pctxs_[i] + pstates_[i][None, :, :])
+            # pctx__ += xc_
+            pctxs__[i] = tensor.tanh(pctxs__[i])
 
+            # multiply by weight vector
+            alphas.append(tensor.dot(pctxs__[i] * ctx_dropouts[i][1], wn(pp(prefix, 'U_att' + suff))) +
+                          tparams[pp(prefix, 'c_tt' + suff)])
+            alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
+            # normalise
+            alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
+            if all_context_masks[i]:
+                alphas[i] = alphas[i] * all_context_masks[i]
+            alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
+            ctxs_.append((ccs_[i] * alphas[i][:, :, None]).sum(0))  # current context
+
+            # print("context before combo "+str(i)+": ", ctxs_[i].tag.test_value.shape)
 
         # -------------- combine the resulting contexts --------------
-
-        # concatenate the two context vectors and project to original dimensions
-        if options['multisource_type'] == "att-concatenation":
-            ctx_ = concatenate([ctx_, aux_ctx_], axis=1)
+        # concatenate the multiple context vectors and project to original dimensions
+        if options['multisource_type'] == "att-concat":
+            ctx_ = concatenate(ctxs_, axis=1)
             # linear projection to return to original context dimensions
-            ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + \
-                            tparams[pp(prefix, 'b_projcomb')]
+            ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
                 ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
-                                     tparams[pp(prefix, 'W_projcomb_att_lns')])
+                                  tparams[pp(prefix, 'W_projcomb_att_lns')])
 
         # apply a context gate between the two different contexts
         elif options['multisource_type'] == "att-gate":
+
             # linear combination of (i) y_i-1 (previous embedded target word),
             # (ii) s_i-1 (previous decoder state), (iii) ctx_ (main context vector) and
             # (iv) aux_ctx_ (auxiliary context vector)
-            ym1_ = state_belowy
-            sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-s-1'))) + \
-                            tparams[pp(prefix, 'b_att-gate-s-1')]
-            main_pctx_ = tensor.dot(ctx_ * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx1'))) + \
-                            tparams[pp(prefix, 'b_att-gate-ctx1')]
-            aux_pctx_ = tensor.dot(aux_ctx_ * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx2'))) + \
-                            tparams[pp(prefix, 'b_att-gate-ctx2')]
-            g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_
+            ym1_ = xxx_
+            sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
+            main_pctx_ = tensor.dot(ctxs_[0] * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx1')))
+            aux_pctx_ = tensor.dot(ctxs_[1] * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx2')))
+
+
+            # print('ym1', ym1_.tag.test_value.shape)
+            # print('sm1', sm1_.tag.test_value.shape)
+            # print('main_pctx_', main_pctx_.tag.test_value.shape)
+            # print('aux_pctx_', aux_pctx_.tag.test_value.shape)
+
+            g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
 
             # TODO: layer normalisation here?
+            if options['layer_normalisation']:
+                g_ = layer_norm(g_, tparams[pp(prefix, 'W_att-gate_lnb')],
+                                tparams[pp(prefix, 'W_att-gate_lns')])
+            # softmax
+            g_ = tensor.exp(g_ - g_[i].max(0, keepdims=True)) # TODO: why do this?
+            g_ = g_ / g_.sum(0, keepdims=True)
+            # TODO: check dimensions
+            ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
 
-            # then softmax
-            g_ = tensor.nnet.softmax(g_)
-
-            # gate between main ctx_ and auxiliary aux_ctx_
-            ctx_ = g_[:, None] * aux_ctx_ + (1. - g_)[:, None] * ctx_
+            ## print(ctx_.tag.test_value)
 
         elif options['multisource_type'] == "att-hier":
             # 3rd attention mechanism over inputs
             # TODO
             1
             # same as above but calculate e_ij using context vectors rather than annotation vectors
-
 
         else:
             ctx_ = ctx_
@@ -937,7 +969,7 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                 preact2 = layer_norm(preact2, tparams[pp(prefix, 'U_nl%s_lnb' % suffix)],
                                      tparams[pp(prefix, 'U_nl%s_lns' % suffix)])
             if i == 0:
-                ctx1_ = tensor.dot(ctx_ * ctx_dropout[2],
+                ctx1_ = tensor.dot(ctx_ * ctx_dropouts[0][2],
                                    wn(pp(prefix, 'Wc' + suffix)))  # dropout mask is shared over mini-steps
                 if options['layer_normalisation']:
                     ctx1_ = layer_norm(ctx1_, tparams[pp(prefix, 'Wc%s_lnb' % suffix)],
@@ -950,8 +982,8 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             u2 = _slice(preact2, 1, dim)
 
             # proposed hidden state of the cGRU ^s_j
-            preactx2 = tensor.dot(h2_prev * rec_dropout[4 + 2 * i], wn(pp(prefix, 'Ux_nl' + suffix))) + tparams[
-                pp(prefix, 'bx_nl' + suffix)]
+            preactx2 = tensor.dot(h2_prev * rec_dropout[4 + 2 * i], wn(pp(prefix, 'Ux_nl' + suffix))) + \
+                       tparams[pp(prefix, 'bx_nl' + suffix)]
             if options['layer_normalisation']:
                 preactx2 = layer_norm(preactx2, tparams[pp(prefix, 'Ux_nl%s_lnb' % suffix)],
                                       tparams[pp(prefix, 'Ux_nl%s_lns' % suffix)])
@@ -959,7 +991,7 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             # they use the context vector from the attention mechanism
             if i == 0:
-                ctx2_ = tensor.dot(ctx_ * ctx_dropout[3],
+                ctx2_ = tensor.dot(ctx_ * ctx_dropouts[0][3],
                                    wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
                 if options['layer_normalisation']:
                     ctx2_ = layer_norm(ctx2_, tparams[pp(prefix, 'Wcx%s_lnb' % suffix)],
@@ -973,30 +1005,34 @@ def multi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             h2 = m_[:, None] * h2 + (1. - m_)[:, None] * h2_prev
             h2_prev = h2
 
-        return h2, ctx_, alpha.T, aux_alpha.T  # pstate_, preact, preactx, r, u
+
+        # print('h2 = ', h2.tag.test_value.shape)
+        # print('ctx_ = ', ctx_.tag.test_value.shape)
+        # print('alpha1 = ', alphas[0].tag.test_value.shape)
+        # print('alpha2 = ', alphas[1].tag.test_value.shape)
 
 
-    seqs = [mask, state_below_, state_belowx]
+        return h2, ctx_, alphas[0].T, alphas[1].T  # pstate_, preact, preactx, r, u
+
+    seqs = [mask, state_below_, state_belowx, state_belowy]
     # seqs = [mask, state_below_, state_belowx, state_belowc]
     _step = _step_slice
 
     shared_vars = []
 
     if one_step:
-        rval = _step(*(seqs + [init_state, None, None, None, pctx_, aux_pctx_, context, aux_context, rec_dropout, ctx_dropout, aux_ctx_dropout] +
-                       shared_vars))
+        rval = _step(*(
+            seqs + [init_state, None, None, None, all_pctxs_, all_contexts, rec_dropout, all_ctx_dropouts] +
+            shared_vars))
     else:
         rval, updates = theano.scan(_step,
                                     sequences=seqs,
                                     outputs_info=[init_state,
-                                                  tensor.zeros((n_samples,
-                                                                context.shape[2])),
-                                                  tensor.zeros((n_samples,
-                                                                context.shape[0])),
-                                                  tensor.zeros((n_samples,
-                                                                aux_context.shape[0]))
+                                                  tensor.zeros((n_samples, context.shape[2])),
+                                                  tensor.zeros((n_samples, context.shape[0])),
+                                                  tensor.zeros((n_samples, extra_context.shape[0]))
                                                   ],
-                                    non_sequences=[pctx_, aux_pctx_, context, aux_context, rec_dropout, ctx_dropout, aux_ctx_dropout] + shared_vars,
+                                    non_sequences=[all_pctxs_, all_contexts, rec_dropout, all_ctx_dropouts] + shared_vars,
                                     name=pp(prefix, '_layers'),
                                     n_steps=nsteps,
                                     truncate_gradient=truncate_gradient,

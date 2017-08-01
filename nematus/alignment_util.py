@@ -77,40 +77,40 @@ def combine_source_target_text(source_IN, nbest_IN, saveto, alignment_IN):
             jdata = json.dumps(jdata).decode('unicode-escape').encode('utf8')
             alignment_OUT.write(jdata + "\n")
 
-def combine_source_target_text_1to1(source_IN, target_IN, saveto, alignment_IN):
+def combine_source_target_text_1to1(source_IN, target_IN, saveto, alignment_IN, suffix=''):
     """
     There is a 1-1 mapping of target and source sentence.
     """
     source_IN.seek(0)
     target_IN.seek(0)
     alignment_IN.seek(0)
-    with open(saveto + "_withwords.json", "w") as alignment_OUT:
+    with open(saveto + '_withwords' + str(suffix) +'.json', 'w') as alignment_OUT:
 
         all_matrixes = alignment_IN.readlines()
         target_lines = target_IN.readlines()
         source_lines = source_IN.readlines()
-        assert len(all_matrixes) == len(target_lines), "The number of lines does not match with each other!"
+        assert len(all_matrixes) == len(target_lines), 'The number of lines does not match with each other!'
 
         for target_index in range(len(all_matrixes)):
             jdata = json.loads(all_matrixes[target_index])
 
-            jdata["source_sent"] = source_lines[target_index].strip()
-            jdata["target_sent"] = target_lines[target_index].strip()
-            jdata["id"] = target_index
-            jdata["prob"] = 0 #float(elements[2].strip().split()[1])
+            jdata['source_sent'] = source_lines[target_index].strip()
+            jdata['target_sent'] = target_lines[target_index].strip()
+            jdata['id'] = target_index
+            jdata['prob'] = 0 #float(elements[2].strip().split()[1])
 
             #jdata = json.dumps(jdata)
             jdata = json.dumps(jdata).decode('unicode-escape').encode('utf8')
             alignment_OUT.write(jdata + "\n")
 
 
-def convert_to_nodes_edges_v1(filename):
+def convert_to_nodes_edges_v1(filename, suffix=''):
     """
     Take as input the aligned file with file names ".withtext", and convert this into a file with nodes and edges.
     Which will later used for Visualization.
     """
     with open(filename, "r") as IN:
-        with open(filename + ".forweb" , "w") as OUT:
+        with open(filename + str(suffix) + ".forweb" , "w") as OUT:
             in_lines = IN.readlines()
             for data in in_lines:
                 data4web = convert_to_nodes_edges_each_v1(data)

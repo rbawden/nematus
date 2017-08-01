@@ -711,13 +711,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     input_file = args.input
 
-    aux_input_file = None
-    multisource_type = None
-    # multisource
+    # multi-source
     if args.aux_input:
         aux_input_file = args.aux_input
-    if args.multisource_type:
-        multisource_type = args.multisource_type
+    else:
+        aux_input_file = None
 
     output_file = args.output
     decoder_settings = parser.get_decoder_settings()

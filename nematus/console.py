@@ -87,9 +87,6 @@ class ConsoleInterfaceDefault(ConsoleInterface):
         self._parser.add_argument('--aux_input', type=argparse.FileType('r'),
                                   default=None, metavar='PATH',
                                   help="Auxiliary input file")
-        self._parser.add_argument('--multisource_type', type=str,
-                                  default=None, choices=['att-concatenation', 'att-gate'],
-                                  help="Input file (default: None)")
 
     def get_translation_settings(self):
         """
