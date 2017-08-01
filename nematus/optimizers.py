@@ -16,6 +16,7 @@ from theano_util import *
 # f_update = name(hyperp, tparams, grads, inputs (list), cost)
 # with profile as an optional argument
 
+
 def adam(lr, tparams, grads, inp, cost, beta1=0.9, beta2=0.999, e=1e-8, optimizer_params={}, profile=False):
     PREFIX='adam_'
 

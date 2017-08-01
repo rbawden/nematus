@@ -126,7 +126,9 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
             return None, None, None, None
 
     n_samples = len(seqs_xs[0])
-    maxlen_xs = [numpy.max(lengths_x) + 1 for lengths_x in lengths_xs]
+
+    # TODO: is there a way of making this different for different inputs? for now take the max of all input sources
+    maxlen_xs = [max([numpy.max(lengths_x) + 1 for lengths_x in lengths_xs])] * len(lengths_xs)
     maxlen_y = numpy.max(lengths_y) + 1
 
     # prepare numpy objects and masks
@@ -1515,12 +1517,10 @@ def train(dim_word=512,  # word vector dimensionality
     # ---------------- load dictionaries and invert them ----------------
     worddicts = []
     worddicts_r = []
-    # each source input can have several factors so dicts are stocked as lists of lists of dicts
 
-    # TODO: sort out this multi-source mess!!
     # Structure of dictionaries = one list of dictionaries for each input.
-    # First list of dictionaries are source (:-1) and target (-1).
-    # All subsequent lists of dictionaries are for extra sources
+    # First list of dictionaries are source (possibly factored) (:-1) and target (-1).
+    # All subsequent lists of dictionaries are for extra sources (possible factored)
 
     for i, dicts in enumerate([dictionaries, extra_source_dicts]):
         # main source dictionary must be provided
@@ -1529,7 +1529,8 @@ def train(dim_word=512,  # word vector dimensionality
 
         # for extra dictionaries, if none provided, reuse main source dictionaries for each extra input
         elif len(dicts) == 0 and i-1 < len(extra_sources):
-            dicts = dictionaries[:-1] # ignore target dict
+            logging.warn('Reusing main src dicts for extra input #%s' % str(i + 1))
+            dicts = dictionaries[:-1] # only copy source dictionaries
 
         # if dictionaries are specified
         worddicts1 = [None] * len(dicts)
@@ -1543,25 +1544,27 @@ def train(dim_word=512,  # word vector dimensionality
         worddicts_r.append(worddicts_r1)
 
     # copy main source dicts to extra sources if no specific dicts were provided for them - by default
-    for i in range(len(worddicts)):
-        if len(worddicts[i]) == 0:
-            if i == 0:
-                logging.error('The main src dict is empty.')
-            else:
-                logging.warn('Reusing main src dicts for extra input #%s' % str(i+1))
-                worddicts[i] = worddicts[0]
-                worddicts_r[i] = worddicts_r[0]
+    #for i in range(len(worddicts)):
+    #    if len(worddicts[i]) == 0:
+    #        if i == 0:
+    #            logging.error('The main src dict is empty.')
+    #        else:
+    #            logging.warn('Reusing main src dicts for extra input #%s' % str(i+1))
+    #            worddicts[i] = worddicts[0]
+    #            worddicts_r[i] = worddicts_r[0]
 
-    n_words_src = len(worddicts[0][0])
+    # vocabulary size of main source input
+    #n_words_src = len(worddicts[0][0])
 
-    # fill extra_n_words_src with Nones if vocab size not specified for all inputs
-    extra_n_words_src += [n_words_src] * (len(extra_sources) - len(extra_n_words_src))
+    # vocab sizes for extra inputs
+    #extra_n_words_src += [ * (len(extra_sources) - len(extra_n_words_src))
 
     # vocabulary size for each input source (equal to dictionary size)
-    all_n_words_src = [n_words_src] + extra_n_words_src
+    #all_n_words_src = [n_words_src] + extra_n_words_src
 
-    model_options['n_words_src'] = all_n_words_src #[len(wd[0]) if all_n_words_src[w] is None else all_n_words_src[w]
-                                   # for w, wd in enumerate(worddicts)]
+
+    all_n_words_src = [len(wd[0]) for w, wd in enumerate(worddicts)]
+    model_options['n_words_src'] = all_n_words_src
 
 
     # TODO: up until here
@@ -1698,6 +1701,7 @@ def train(dim_word=512,  # word vector dimensionality
     if multisource_type is not None:
         trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
         inps = [z for i in range(num_encoders) for z in (xs[i], x_masks[i])] + [y, y_mask]
+        print(inps)
     else:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
         inps = [x, x_mask, y, y_mask]
@@ -1871,13 +1875,17 @@ def train(dim_word=512,  # word vector dimensionality
                         training_progress.uidx -= 1
                         continue
 
+                print(xs[0].shape)
+                print(xs[1].shape)
+                print(x_masks[0].shape)
+                print(x_masks[1].shape)
+                print(y.shape[0])
+
                 cost_batches += 1
                 last_disp_samples += xlen
 
                 # TODO: multisource?? changed from x_mask
                 last_words += (numpy.sum(x_masks[0]) + numpy.sum(y_mask)) / 2.0
-
-                print(len(xs[0]), len(x_masks[0]))
 
                 # TODO: make generic
                 # compute cost, grads and update parameters
