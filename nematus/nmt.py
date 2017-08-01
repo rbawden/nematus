@@ -1701,7 +1701,7 @@ def train(dim_word=512,  # word vector dimensionality
     if multisource_type is not None:
         trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
         inps = [z for i in range(num_encoders) for z in (xs[i], x_masks[i])] + [y, y_mask]
-        print(inps)
+        # print(inps)
     else:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
         inps = [x, x_mask, y, y_mask]
@@ -1875,11 +1875,11 @@ def train(dim_word=512,  # word vector dimensionality
                         training_progress.uidx -= 1
                         continue
 
-                print(xs[0].shape)
-                print(xs[1].shape)
-                print(x_masks[0].shape)
-                print(x_masks[1].shape)
-                print(y.shape[0])
+                #print(xs[0].shape)
+                #print(xs[1].shape)
+                #print(x_masks[0].shape)
+                #print(x_masks[1].shape)
+                #print(y.shape[0])
 
                 cost_batches += 1
                 last_disp_samples += xlen
