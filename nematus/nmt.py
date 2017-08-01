@@ -1521,7 +1521,6 @@ def train(dim_word=512,  # word vector dimensionality
     # Structure of dictionaries = one list of dictionaries for each input.
     # First list of dictionaries are source (possibly factored) (:-1) and target (-1).
     # All subsequent lists of dictionaries are for extra sources (possible factored)
-
     for i, dicts in enumerate([dictionaries, extra_source_dicts]):
         # main source dictionary must be provided
         if len(dicts) == 0 and i == 0:
@@ -1529,7 +1528,7 @@ def train(dim_word=512,  # word vector dimensionality
 
         # for extra dictionaries, if none provided, reuse main source dictionaries for each extra input
         elif len(dicts) == 0 and i-1 < len(extra_sources):
-            logging.warn('Reusing main src dicts for extra input #%s' % str(i + 1))
+            logging.warn('Reusing main src dicts for extra input #%s' % str(i))
             dicts = dictionaries[:-1] # only copy source dictionaries
 
         # if dictionaries are specified
@@ -1562,12 +1561,9 @@ def train(dim_word=512,  # word vector dimensionality
     # vocabulary size for each input source (equal to dictionary size)
     #all_n_words_src = [n_words_src] + extra_n_words_src
 
-
+    # vocabulary sizes for each of the input sources (words)
     all_n_words_src = [len(wd[0]) for w, wd in enumerate(worddicts)]
     model_options['n_words_src'] = all_n_words_src
-
-
-    # TODO: up until here
 
     # vocabulary size for the target
     if n_words is None:
@@ -2050,7 +2046,7 @@ def train(dim_word=512,  # word vector dimensionality
                     # extra current inputs x
                     extra_x_current = [None] * len(extra_sources)
                     for i in range(len(extra_sources)):
-                        extra_x_current.append(xs[i+1][:, :, jj][:, :, None])
+                        extra_x_current[i] = (xs[i+1][:, :, jj][:, :, None])
                         # remove padding
                         extra_x_current[i] = extra_x_current[i][:, :x_masks[i+1].astype('int64')[:, jj].sum(), :]
 
