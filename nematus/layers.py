@@ -416,10 +416,18 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     scale_mul = 1.0
 
     # parameters for statebelow and statebelowx
-    W = numpy.concatenate([norm_weight(nin, dim),
-                           norm_weight(nin, dim)], axis=1)
-    params[pp(prefix, 'W')] = W
-    params[pp(prefix, 'b')] = numpy.zeros((2 * dim,)).astype(floatX)
+
+    if options['multisource_type'] == "att-gate":
+        W = numpy.concatenate([norm_weight(nin, dim),
+                               norm_weight(nin, dim),
+                               norm_weight(nin, dim)], axis=1)
+        params[pp(prefix, 'W')] = W
+        params[pp(prefix, 'b')] = numpy.zeros((3 * dim,)).astype(floatX)
+    else:
+        W = numpy.concatenate([norm_weight(nin, dim),
+                               norm_weight(nin, dim)], axis=1)
+        params[pp(prefix, 'W')] = W
+        params[pp(prefix, 'b')] = numpy.zeros((2 * dim,)).astype(floatX)
 
     U = numpy.concatenate([ortho_weight(dim_nonlin),
                            ortho_weight(dim_nonlin)], axis=1)
@@ -824,17 +832,23 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
     # print("state below", state_below.tag.test_value.shape)
     # used for context gate (bias to be added later)
-    if options['multisource_type'] == "att-gate":
-        state_belowy = tensor.dot(state_below * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ym1')))
-    else:
-        state_belowy = None
+    #if options['multisource_type'] == "att-gate":
+    #    state_belowy = tensor.dot(state_below * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ym1')))
+    #else:
+    #    state_belowy = None
 
         # print("state belowy = ", state_belowy.tag.test_value.shape)
 
     # ----------- beginning of _step_slice -----------
     # step function (to be used by scan)
     # TODO: cannot pass a list here, so only 2 inputs are possible for now
-    def _step_slice(m_, x_, xx_, xxx_, h_, ctx_, alpha_, extra_alpha_, pctxs_, ccs_, rec_dropout, ctx_dropouts):
+    def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctxs_, ccs_, rec_dropout, ctx_dropouts):
+
+        # for att-gate - craftily hidden in third dimension of x_
+        if options['multisource_type'] == 'att-gate':
+            xxx_ = _slice(x_, 3, dim)
+            x_ = concatenate(_slice(x_, 1, dim), _slice(x_, 2, dim))
+
 
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
@@ -1007,16 +1021,14 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             h2 = m_[:, None] * h2 + (1. - m_)[:, None] * h2_prev
             h2_prev = h2
 
-
         # print('h2 = ', h2.tag.test_value.shape)
         # print('ctx_ = ', ctx_.tag.test_value.shape)
         # print('alpha1 = ', alphas[0].tag.test_value.shape)
         # print('alpha2 = ', alphas[1].tag.test_value.shape)
 
-
         return h2, ctx_, alphas[0].T, alphas[1].T  # pstate_, preact, preactx, r, u
 
-    seqs = [mask, state_below_, state_belowx, state_belowy]
+    seqs = [mask, state_below_, state_belowx]
     # seqs = [mask, state_below_, state_belowx, state_belowc]
     _step = _step_slice
 

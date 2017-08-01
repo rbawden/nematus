@@ -88,6 +88,9 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
 def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_words=30000, n_factors=1):
     # ensure the same length for all inputs and target
 
+    #print(len(seqs_xs))
+    #print('seq length', len(seqs_xs[0]))
+
     # print([len(seq_x) for seq_x in list(seqs_xs) + [seqs_y]])
     assert len(set(len(seq_x) for seq_x in list(seqs_xs) + [seqs_y])) == 1
 
@@ -136,6 +139,9 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
     y = numpy.zeros((maxlen_y, n_samples)).astype('int64')
     y_mask = numpy.zeros((maxlen_y, n_samples)).astype(floatX)
 
+    #print("len first x")
+    #print(len(xs[0]))
+
     for idx, s_y in enumerate(seqs_y):
         for i in range(len(seqs_xs)):
             ## print("idx", idx)
@@ -147,6 +153,12 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
             x_masks[i][:lengths_xs[i][idx] + 1, idx] = 1.
         y[:lengths_y[idx], idx] = s_y
         y_mask[:lengths_y[idx] + 1, idx] = 1.
+
+    #print("x and masks")
+    #print(xs[0])
+    #print(xs[1])
+    #print(len(xs), len(x_masks[0]))
+    #raw_input()
 
     return xs, x_masks, y, y_mask
 
@@ -1510,9 +1522,14 @@ def train(dim_word=512,  # word vector dimensionality
     # First list of dictionaries are source (:-1) and target (-1).
     # All subsequent lists of dictionaries are for extra sources
 
-    for dicts in [dictionaries, extra_source_dicts]:
-        if len(dicts)==0:
-            continue
+    for i, dicts in enumerate([dictionaries, extra_source_dicts]):
+        # main source dictionary must be provided
+        if len(dicts) == 0 and i == 0:
+            logging.error("Dictionaries must be provided for main source inputs and target.")
+
+        # for extra dictionaries, if none provided, reuse main source dictionaries for each extra input
+        elif len(dicts) == 0 and i-1 < len(extra_sources):
+            dicts = dictionaries[:-1] # ignore target dict
 
         # if dictionaries are specified
         worddicts1 = [None] * len(dicts)
@@ -1859,6 +1876,8 @@ def train(dim_word=512,  # word vector dimensionality
 
                 # TODO: multisource?? changed from x_mask
                 last_words += (numpy.sum(x_masks[0]) + numpy.sum(y_mask)) / 2.0
+
+                print(len(xs[0]), len(x_masks[0]))
 
                 # TODO: make generic
                 # compute cost, grads and update parameters

@@ -230,8 +230,8 @@ if __name__ == "__main__":
 
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--datasets", nargs=2)
-    parser.add_argument("--dicts", nargs='+')
+    parser.add_argument("--datasets", nargs=2, required=True)
+    parser.add_argument("--dicts", nargs='+', required=True)
     parser.add_argument("--extra_sources", nargs='+', default=[])
     args = parser.parse_args()
 
@@ -246,6 +246,8 @@ if __name__ == "__main__":
 
         if xs is not None:
             for s in range(len(xs)):
-                print("\t"+str(len(xs[s])))
-                print("\t"+str(len(x_masks[s])))
-            print(len(y))
+                print(xs[s].shape)
+                print(x_masks[s].shape)
+            print(y.shape)
+            print(y_masks.shape)
+            raw_input()
