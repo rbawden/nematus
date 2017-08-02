@@ -1034,12 +1034,10 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     else:
         xs = [x] + list(extra_xs)
 
-    # TODO: just do two for now
-    aux_x = extra_xs
-    if aux_x is not None:
-        aux_x = aux_x[0]
     assert extra_xs is None or len(extra_xs) == 1, 'Only accepting one extra source for now'
-
+    # TODO: just do two for now
+    if extra_xs is not None:
+        aux_x = extra_xs[0]
 
     sample = []
     sample_score = []
@@ -1081,7 +1079,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     # multi-source (2 attention mechanisms)
     if aux_x is not None:
         ctx1 = [None] * num_models
-        dec_alphas2 = [None] * num_models  # for multi-source
+        dec_alphas1 = [None] * num_models  # for multi-source
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
@@ -1099,6 +1097,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
         if aux_x is not None:
             ctx1[i] = ret[2]
     next_w = -1 * numpy.ones((live_k,)).astype('int64')  # bos indicator
+
+
+    print(ctx0[0].shape, ctx1[0].shape)
 
     # x is a sequence of word ids followed by 0, eos id
     for ii in xrange(maxlen):
@@ -1132,7 +1133,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
                 # multi-source
                 if aux_x is not None:
-                    dec_alphas2[i] = ret[4]
+                    dec_alphas1[i] = ret[4]
 
             # to more easily manipulate batch size, go from (layers, batch_size, dim) to (batch_size, layers, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
