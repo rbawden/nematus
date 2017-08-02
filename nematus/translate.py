@@ -352,6 +352,7 @@ class Translator(object):
 
         # listen to queue in while loop, translate items
         while True:
+            print("yup")
             input_item = self._input_queue.get()
             if input_item is None:
                 break
