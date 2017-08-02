@@ -352,14 +352,12 @@ class Translator(object):
 
         # listen to queue in while loop, translate items
         while True:
-            print("yup")
             input_item = self._input_queue.get()
             if input_item is None:
                 break
             idx = input_item.idx
             request_id = input_item.request_id
             output_item = self._translate(process_id, input_item, trng, fs_init, fs_next, gen_sample)
-            print(output_item)
             self._output_queue.put((request_id, idx, output_item))
         return
 
