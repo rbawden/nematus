@@ -1118,10 +1118,11 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
             if aux_x is not None:
                 print(ctx0[i].shape, ctx1[i].shape)
+                print(ctx.shape, aux_ctx.shape)
 
             # multi-source
             if aux_x is not None:
-                inps = [next_w, ctx, next_state[i]]
+                inps = [next_w, ctx, aux_ctx, next_state[i]]
             else:
                 inps = [next_w, ctx, next_state[i]]
 
