@@ -89,8 +89,8 @@ class TranslationSettings(object):
             self.get_search_graph = False
             self.search_graph_filename = None
 
-        if args.multisource_type:
-            self.multisource_type = args.multisource_type
+        #if args.multisource_type:
+        #    self.multisource_type = args.multisource_type
 
 
 
