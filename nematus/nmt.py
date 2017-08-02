@@ -1017,7 +1017,7 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
     return f_sample
 
 
-# TODO: multi-source
+# TODO: generic multi-source
 # generate sample, either with stochastic sampling or beam search. Note that
 # this function iteratively calls f_init and f_next functions.
 def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
@@ -1036,6 +1036,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
     # TODO: just do two for now
     aux_x = extra_xs
+    if aux_x is not None:
+        aux_x = aux_x[0]
     assert extra_xs is None or len(extra_xs) == 1, 'Only accepting one extra source for now'
 
 
@@ -1084,6 +1086,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
         if aux_x is not None:
+            print(x.shape, aux_x.shape)
             ret = f_init[i](x, aux_x)
         else:
             ret = f_init[i](x)
