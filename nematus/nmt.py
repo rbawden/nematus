@@ -1117,7 +1117,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             else:
                 inps = [next_w, ctx, next_state[i]]
 
-
             for thing in inps:
                 print(thing.shape)
 
