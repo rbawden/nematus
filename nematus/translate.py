@@ -153,9 +153,12 @@ class Translator(object):
         self._options = options
 
         for i, _ in enumerate(self._models):
-            for attr in ['multisource_type', 'extra_sources']:
+            for attr in ['multisource_type']:
                 if attr not in self._options[i]:
                     self._options[i][attr] = None
+            for attr in ['extra_sources']:
+                if attr not in self._options[i]:
+                    self._options[i][attr] = []
 
     def _build_dictionaries(self):
         """
