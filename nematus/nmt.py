@@ -1088,7 +1088,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
         if aux_x is not None:
-            print(x.shape, aux_x.shape)
+            #print(x.shape, aux_x.shape)
             ret = f_init[i](x, aux_x)
         else:
             ret = f_init[i](x)
@@ -1102,8 +1102,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             ctx1[i] = ret[2]
     next_w = -1 * numpy.ones((live_k,)).astype('int64')  # bos indicator
 
-    if aux_x is not None:
-        print(ctx0[0].shape, ctx1[0].shape)
+    #if aux_x is not None:
+    #    print(ctx0[0].shape, ctx1[0].shape)
 
     # x is a sequence of word ids followed by 0, eos id
     for ii in xrange(maxlen):
@@ -1116,9 +1116,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             # for theano function, go from (batch_size, layers, dim) to (layers, batch_size, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
 
-            if aux_x is not None:
-                print(ctx0[i].shape, ctx1[i].shape)
-                print(ctx.shape, aux_ctx.shape)
+            #if aux_x is not None:
+            #    print(ctx0[i].shape, ctx1[i].shape)
+            #    print(ctx.shape, aux_ctx.shape)
 
             # multi-source
             if aux_x is not None:
@@ -1126,8 +1126,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             else:
                 inps = [next_w, ctx, next_state[i]]
 
-            for thing in inps:
-                print(thing.shape)
+            #for thing in inps:
+            #    print(thing.shape)
 
             ret = f_next[i](*inps)
 
