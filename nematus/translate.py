@@ -366,7 +366,7 @@ class Translator(object):
 
         # sample given an input sequence and obtain scores
         if input_item.aux_seq is not None:
-            sample, score, word_probs, alignment, hyp_graph = self.__sample(input_item, trng, fs_init, fs_next, gen_sample)
+            sample, score, word_probs, alignment, hyp_graph = self._sample(input_item, trng, fs_init, fs_next, gen_sample)
         else:
             sample, score, word_probs, alignment, hyp_graph = self._sample(input_item, trng, fs_init, fs_next, gen_sample)
 
