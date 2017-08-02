@@ -1536,6 +1536,7 @@ def train(dim_word=512,  # word vector dimensionality
     # First list of dictionaries are source (possibly factored) (:-1) and target (-1).
     # All subsequent lists of dictionaries are for extra sources (possible factored)
     for i, dicts in enumerate([dictionaries, extra_source_dicts]):
+
         # main source dictionary must be provided
         if len(dicts) == 0 and i == 0:
             logging.error("Dictionaries must be provided for main source inputs and target.")
@@ -1544,6 +1545,10 @@ def train(dim_word=512,  # word vector dimensionality
         elif len(dicts) == 0 and i-1 < len(extra_sources):
             logging.warn('Reusing main src dicts for extra input #%s' % str(i))
             dicts = dictionaries[:-1] # only copy source dictionaries
+
+        # no exta sources so ignore looking for extra source dicts
+        elif i > len(extra_sources):
+            continue
 
         # if dictionaries are specified
         worddicts1 = [None] * len(dicts)
