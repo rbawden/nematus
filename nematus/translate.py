@@ -698,12 +698,15 @@ class Translator(object):
             for translation in translations:
                 self.write_translation(output_file, translation, translation_settings)
 
+
 def main(input_file, output_file, decoder_settings, translation_settings, aux_input_file=None):
     """
     Translates a source language file (or STDIN) into a target language file
     (or STDOUT).
     """
     translator = Translator(decoder_settings)
+
+    print("established translator")
 
     translations = translator.translate_file(input_file, translation_settings, aux_input_object=aux_input_file)
 
@@ -731,5 +734,4 @@ if __name__ == "__main__":
     # start logging
     level = logging.DEBUG if decoder_settings.verbose else logging.WARNING
     logging.basicConfig(level=level, format='%(levelname)s: %(message)s')
-    main(input_file, output_file, decoder_settings, translation_settings, \
-         aux_input_file=aux_input_file)
+    main(input_file, output_file, decoder_settings, translation_settings, aux_input_file=aux_input_file)

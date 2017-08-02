@@ -745,6 +745,8 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
 
     num_encoders = len(options['extra_sources']) + 1
 
+    print("num encoders = "+str(num_encoders))
+
     dropout = dropout_constr(options, use_noise, trng, sampling=True)
 
     xs = [[]] * num_encoders
@@ -1119,7 +1121,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
             # multi-source
             if aux_x is not None:
-                inps = [next_w, ctx, aux_ctx, next_state[i]]
+                inps = [next_w, ctx, ctx, next_state[i]]
             else:
                 inps = [next_w, ctx, next_state[i]]
 
