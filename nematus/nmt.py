@@ -1082,6 +1082,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     if aux_x is not None:
         ctx1 = [None] * num_models
         dec_alphas1 = [None] * num_models  # for multi-source
+    else:
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
@@ -1114,7 +1115,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             # for theano function, go from (batch_size, layers, dim) to (layers, batch_size, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
 
-            print(ctx0[i].shape, ctx1[i].shape)
+            if aux_x is not None:
+                print(ctx0[i].shape, ctx1[i].shape)
 
             # multi-source
             if aux_x is not None:
