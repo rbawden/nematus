@@ -1098,7 +1098,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             ctx1[i] = ret[2]
     next_w = -1 * numpy.ones((live_k,)).astype('int64')  # bos indicator
 
-
     print(ctx0[0].shape, ctx1[0].shape)
 
     # x is a sequence of word ids followed by 0, eos id
@@ -1111,6 +1110,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
             # for theano function, go from (batch_size, layers, dim) to (layers, batch_size, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
+
+            print(ctx0[i].shape, ctx1[i].shape)
 
             # multi-source
             if aux_x is not None:
