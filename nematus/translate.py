@@ -171,7 +171,7 @@ class Translator(object):
 
         # multi-source
         if multisource:
-            aux_dictionaries_source = self._options[0]['aux_source_dicts']
+            aux_dictionaries_source = self._options[0]['extra_source_dicts']
             if aux_dictionaries_source is None or len(aux_dictionaries_source)<1:
                 logging.info("No auxiliary input source dicts provided so reusing the main source dicts.")
                 aux_dictionaries_source = dictionaries_source
