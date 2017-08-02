@@ -1038,6 +1038,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     # TODO: just do two for now
     if extra_xs is not None:
         aux_x = extra_xs[0]
+    else:
+        aux_x = None
 
     sample = []
     sample_score = []
