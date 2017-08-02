@@ -2075,11 +2075,11 @@ def train(dim_word=512,  # word vector dimensionality
                                                                                         extra_xs=extra_x_current)
                     # TODO: only accepting 2 inputs at present
                     print 'Source ', jj, ': ',
-                    for pos in range(x.shape[1]):
-                        if x[0, pos, jj] == 0:
+                    for pos in range(xs[0].shape[1]):
+                        if xs[0][0, pos, jj] == 0:
                             break
                         for factor in range(factors):
-                            vv = x[factor, pos, jj]
+                            vv = xs[0][factor, pos, jj]
                             if vv in worddicts_r[factor]:
                                 sys.stdout.write(worddicts_r[factor][vv])
                             else:
