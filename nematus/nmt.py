@@ -1098,7 +1098,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             ctx1[i] = ret[2]
     next_w = -1 * numpy.ones((live_k,)).astype('int64')  # bos indicator
 
-    print(ctx0[0].shape, ctx1[0].shape)
+    if aux_x is not None:
+        print(ctx0[0].shape, ctx1[0].shape)
 
     # x is a sequence of word ids followed by 0, eos id
     for ii in xrange(maxlen):

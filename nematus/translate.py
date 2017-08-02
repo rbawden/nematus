@@ -298,6 +298,8 @@ class Translator(object):
             fs_init.append(f_init)
             fs_next.append(f_next)
 
+        print("All loaded")
+
         return trng, fs_init, fs_next, gen_sample
 
     def _set_device(self, device_id):
