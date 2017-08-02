@@ -152,6 +152,9 @@ class Translator(object):
 
         self._options = options
 
+        if 'multisource_type' not in self._options:
+            self._options['multisource_type'] = None
+
     def _build_dictionaries(self):
         """
         Builds and inverts source and target dictionaries, taken
