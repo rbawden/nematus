@@ -961,7 +961,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                 g_ = layer_norm(g_, tparams[pp(prefix, 'W_att-gate_lnb')],
                                 tparams[pp(prefix, 'W_att-gate_lns')])
             # softmax
-            g_ = tensor.exp(g_ - g_[i].max(0, keepdims=True)) # TODO: why do this?
+            g_ = tensor.exp(g_ - g_.max(0, keepdims=True)) # TODO: why do this?
             g_ = g_ / g_.sum(0, keepdims=True)
             # TODO: check dimensions
             ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
