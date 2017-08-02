@@ -32,7 +32,7 @@ class TextIterator:
                  extra_n_words_source=[]):   # maximum number of inputs words for each source
 
         # check for multiple input sources and always store as a big list of inputs
-        if len(extra_sources) > 0:
+        if extra_sources is not None and len(extra_sources) > 0:
             self.multisource = True
             all_sources = [source] + extra_sources
             if len(extra_n_words_source) < 1:

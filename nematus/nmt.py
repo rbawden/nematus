@@ -2413,7 +2413,7 @@ if __name__ == '__main__':
                        help="auxiliary network vocabularies (one per source factor) in order of extra inputs")
     multi.add_argument('--extra_source_dicts_nums', type=str, metavar='INT', nargs="+", default=[],
                        help="number of auxiliary network vocabularies per extra input (in the same order")
-    multi.add_argument('--extra_valid_sources', type=str, metavar='PATH', default=None, nargs='+',
+    multi.add_argument('--extra_valid_sources', type=str, metavar='PATH', default=[], nargs='+',
                        help="auxiliary parallel validation corpora (source)")
     multi.add_argument('--multisource_type', choices=("att-concat", "att-gate"), default=None)
     multi.add_argument('--extra_n_words_src', type=int, nargs="+", default=[], metavar='INT',
