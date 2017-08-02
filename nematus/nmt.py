@@ -745,8 +745,6 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
 
     num_encoders = len(options['extra_sources']) + 1
 
-    print("num encoders = "+str(num_encoders))
-
     dropout = dropout_constr(options, use_noise, trng, sampling=True)
 
     xs = [[]] * num_encoders

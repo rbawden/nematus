@@ -260,6 +260,7 @@ class Translator(object):
             if self._device_list is not None and len(self._device_list) != 0:
                 deviceid = self._device_list[process_id % len(self._device_list)].strip()
             processes[process_id] = Process(target=self._start_worker, args=(process_id, deviceid))
+            print(process_id)
             processes[process_id].start()
 
         self._processes = processes
@@ -305,8 +306,6 @@ class Translator(object):
 
             fs_init.append(f_init)
             fs_next.append(f_next)
-
-        print("All loaded")
 
         return trng, fs_init, fs_next, gen_sample
 
@@ -705,8 +704,6 @@ def main(input_file, output_file, decoder_settings, translation_settings, aux_in
     (or STDOUT).
     """
     translator = Translator(decoder_settings)
-
-    print("established translator")
 
     translations = translator.translate_file(input_file, translation_settings, aux_input_object=aux_input_file)
 
