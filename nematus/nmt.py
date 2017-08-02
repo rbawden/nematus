@@ -1082,7 +1082,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     if aux_x is not None:
         ctx1 = [None] * num_models
         dec_alphas1 = [None] * num_models  # for multi-source
-    else:
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
