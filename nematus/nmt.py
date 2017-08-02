@@ -2085,8 +2085,8 @@ def train(dim_word=512,  # word vector dimensionality
                             break
                         for factor in range(factors):
                             vv = xs[0][factor, pos, jj]
-                            if vv in worddicts_r[factor]:
-                                sys.stdout.write(worddicts_r[factor][vv])
+                            if vv in worddicts_r[0][factor]:
+                                sys.stdout.write(worddicts_r[0][factor][vv])
                             else:
                                 sys.stdout.write('UNK')
                             if factor + 1 < factors:
@@ -2100,8 +2100,8 @@ def train(dim_word=512,  # word vector dimensionality
                                 break
                             for factor in range(factors):
                                 vv = xs[1][factor, pos, jj]
-                                if vv in worddicts_r[factor]:
-                                    sys.stdout.write(worddicts_r[factor][vv])
+                                if vv in worddicts_r[1][factor]:
+                                    sys.stdout.write(worddicts_r[1][factor][vv])
                                 else:
                                     sys.stdout.write('UNK')
                                 if factor + 1 < factors:
@@ -2113,8 +2113,8 @@ def train(dim_word=512,  # word vector dimensionality
                     for vv in y[:, jj]:
                         if vv == 0:
                             break
-                        if vv in worddicts_r[-1]:
-                            print worddicts_r[-1][vv],
+                        if vv in worddicts_r[0][-1]:
+                            print worddicts_r[0][-1][vv],
                         else:
                             print 'UNK',
                     print
@@ -2408,7 +2408,7 @@ if __name__ == '__main__':
 
     multi = parser.add_argument_group('multiple source input parameters')
     multi.add_argument('--extra_sources', type=str, metavar='PATH', nargs='+',
-                       help="auxiliary parallel training corpus (source)")
+                       help="auxiliary parallel training corpus (source)", default=[])
     multi.add_argument('--extra_source_dicts', type=str, metavar='PATH', nargs="+", default=[],
                        help="auxiliary network vocabularies (one per source factor) in order of extra inputs")
     multi.add_argument('--extra_source_dicts_nums', type=str, metavar='INT', nargs="+", default=[],
