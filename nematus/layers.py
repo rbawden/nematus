@@ -413,7 +413,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
     # parameters for statebelow and statebelowx
 
-    if options['multisource_type'] == "att-gate":
+    if options['multisource_type'] == "false":
         W = numpy.concatenate([norm_weight(nin, dim),
                                norm_weight(nin, dim),
                                norm_weight(nin, dim),
@@ -534,7 +534,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     # TODO: check dimensions
     if options["multisource_type"] == "att-gate":
         #params[pp(prefix, 'W_att-gate-ym1')] = norm_weight(nin_nonlin, dimctx[0])
-        params[pp(prefix, 'W_att-gate-sm1')] = norm_weight(dim_nonlin, dimctx[0])
+        #params[pp(prefix, 'W_att-gate-sm1')] = norm_weight(dim_nonlin, dimctx[0])
         params[pp(prefix, 'W_att-gate-ctx1')] = norm_weight(dimctx[0])
         params[pp(prefix, 'W_att-gate-ctx2')] = norm_weight(dimctx[1])
         params[pp(prefix, 'b_att-gate')] = numpy.zeros((dimctx[0],)).astype(floatX)
@@ -842,9 +842,9 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctxs_, ccs_, rec_dropout, ctx_dropouts):
 
         # for att-gate - craftily hidden in third dimension of x_
-        if options['multisource_type'] == 'att-gate':
-            xxx_ = concatenate([_slice(x_, 2, dim), _slice(x_, 3, dim)], axis=1)
-            x_ = concatenate([_slice(x_, 0, dim), _slice(x_, 1, dim)], axis=1)
+        #if options['multisource_type'] == 'att-gate':
+        #    xxx_ = concatenate([_slice(x_, 2, dim), _slice(x_, 3, dim)], axis=1)
+        #    x_ = concatenate([_slice(x_, 0, dim), _slice(x_, 1, dim)], axis=1)
 
           # print('xxx', xxx_.tag.test_value.shape)
           # print('x', x_.tag.test_value.shape)
@@ -940,12 +940,13 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             # linear combination of (i) y_i-1 (previous embedded target word),
             # (ii) s_i-1 (previous decoder state), (iii) ctx_ (main context vector) and
             # (iv) aux_ctx_ (auxiliary context vector)
-            ym1_ = xxx_
-            sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
+            #ym1_ = xxx_
+            #sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
             main_pctx_ = tensor.dot(ctxs_[0] * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx1')))
             aux_pctx_ = tensor.dot(ctxs_[1] * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx2')))
 
-            g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
+            #g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
+            g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
 
             # TODO: layer normalisation here?
             if options['layer_normalisation']:
