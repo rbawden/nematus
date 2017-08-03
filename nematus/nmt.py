@@ -2083,9 +2083,13 @@ def train(dim_word=512,  # word vector dimensionality
 
                     #print(xs[0])
 
+
                     # TODO: only accepting 2 inputs at present
                     print 'Source ', jj, ': ',
                     for pos in range(xs[0].shape[1]):
+
+                        print(xs[0][pos])
+
                         if xs[0][0, pos, jj] == 0:
                             break
                         for factor in range(factors):
