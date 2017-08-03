@@ -1890,12 +1890,6 @@ def train(dim_word=512,  # word vector dimensionality
                         training_progress.uidx -= 1
                         continue
 
-                #print(xs[0].shape)
-                #print(xs[1].shape)
-                #print(x_masks[0].shape)
-                #print(x_masks[1].shape)
-                #print(y.shape[0])
-
                 cost_batches += 1
                 last_disp_samples += xlen
 
