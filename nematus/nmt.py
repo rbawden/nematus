@@ -2081,19 +2081,16 @@ def train(dim_word=512,  # word vector dimensionality
                                                                                         return_hyp_graph=False,
                                                                                         extra_xs=extra_x_current)
 
-                    #print(xs[0])
-
-
                     # TODO: only accepting 2 inputs at present
                     print 'Source ', jj, ': ',
                     for pos in range(xs[0].shape[1]):
-
-                        print(xs[0][pos])
 
                         if xs[0][0, pos, jj] == 0:
                             break
                         for factor in range(factors):
                             vv = xs[0][factor, pos, jj]
+
+                            #print(vv)
                             if vv in worddicts_r[0][factor]:
                                 sys.stdout.write(worddicts_r[0][factor][vv])
                             else:
@@ -2122,6 +2119,7 @@ def train(dim_word=512,  # word vector dimensionality
                     for vv in y[:, jj]:
                         if vv == 0:
                             break
+                        #print(vv)
                         if vv in worddicts_r[0][-1]:
                             print worddicts_r[0][-1][vv],
                         else:
@@ -2136,8 +2134,8 @@ def train(dim_word=512,  # word vector dimensionality
                     for vv in ss:
                         if vv == 0:
                             break
-                        if vv in worddicts_r[-1]:
-                            print worddicts_r[-1][vv],
+                        if vv in worddicts_r[0][-1]:
+                            print worddicts_r[0][-1][vv],
                         else:
                             print 'UNK',
                     print
