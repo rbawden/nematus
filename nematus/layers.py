@@ -529,7 +529,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     # parameters still used for decoder initialisation in methods other than att-concat
     if options['multisource_type'] in ('att-concat', 'att-gate'):
         # linear projection
-        params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx[0] + dimctx[1], dimctx[0], scale=0.01)
+        params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx[0] + dimctx[1], dimctx[0])
         params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx[0],)).astype(floatX)
         if options['layer_normalisation']:
             params[pp(prefix, 'W_projcomb_att_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
