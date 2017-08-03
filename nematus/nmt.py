@@ -1034,9 +1034,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     else:
         xs = [x] + list(extra_xs)
 
-    assert extra_xs is None or len(extra_xs) == 1, 'Only accepting one extra source for now'
+    assert extra_xs is None or len(extra_xs) <= 1, 'Only accepting one extra source for now'
     # TODO: just do two for now
-    if extra_xs is not None:
+    if extra_xs is not None and len(extra_xs) > 0:
         aux_x = extra_xs[0]
     else:
         aux_x = None
@@ -1885,7 +1885,7 @@ def train(dim_word=512,  # word vector dimensionality
                                                               n_factors=factors,
                                                               n_words_src=n_words_src,
                                                               n_words=n_words)
-                    if x is None:
+                    if xs[0] is None:
                         logging.warning('Minibatch with zero sample under length %d' % maxlen)
                         training_progress.uidx -= 1
                         continue
@@ -2047,10 +2047,12 @@ def train(dim_word=512,  # word vector dimensionality
                     logging.info('Done')
 
             # make compatible with multi-source
-            if not multisource:
-                xs = [x]
-                x_masks = [x_mask]
+            #if not multisource:
+            # xs = [x]
+            #    x_masks = [x_mask]
 
+
+            #print(xs[0].shape)
             # generate some samples with the model and display them
             if sampleFreq and numpy.mod(training_progress.uidx, sampleFreq) == 0:
                 # FIXME: random selection?
@@ -2078,6 +2080,9 @@ def train(dim_word=512,  # word vector dimensionality
                                                                                         suppress_unk=False,
                                                                                         return_hyp_graph=False,
                                                                                         extra_xs=extra_x_current)
+
+                    #print(xs[0])
+
                     # TODO: only accepting 2 inputs at present
                     print 'Source ', jj, ': ',
                     for pos in range(xs[0].shape[1]):
