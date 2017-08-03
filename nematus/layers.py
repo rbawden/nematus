@@ -927,7 +927,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         # concatenate the multiple context vectors and project to original dimensions
         if options['multisource_type'] == "att-concat":
             # put auxiliary context first
-            ctx_ = concatenate(reversed(ctxs_), axis=1)
+            ctx_ = concatenate([ctxs_[1], ctxs_[0]], axis=1)
             # linear projection to return to original context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
@@ -944,12 +944,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
             main_pctx_ = tensor.dot(ctxs_[0] * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx1')))
             aux_pctx_ = tensor.dot(ctxs_[1] * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx2')))
-
-
-          # print('ym1', ym1_.tag.test_value.shape)
-          # print('sm1', sm1_.tag.test_value.shape)
-          # print('main_pctx_', main_pctx_.tag.test_value.shape)
-          # print('aux_pctx_', aux_pctx_.tag.test_value.shape)
 
             g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
 
