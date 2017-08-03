@@ -408,10 +408,6 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     if dim_nonlin is None:
         dim_nonlin = dim
 
-
-    # print('nin_nonlin = ', nin_nonlin)
-    # print('dim_nonlin = ', dim_nonlin)
-
     scale_add = 0.0
     scale_mul = 1.0
 
@@ -930,7 +926,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         # -------------- combine the resulting contexts --------------
         # concatenate the multiple context vectors and project to original dimensions
         if options['multisource_type'] == "att-concat":
-            ctx_ = concatenate(ctxs_, axis=1)
+            # put auxiliary context first
+            ctx_ = concatenate(reversed(ctxs_), axis=1)
             # linear projection to return to original context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
