@@ -13,7 +13,7 @@ from collections import defaultdict
 from Queue import Empty
 
 from util import load_dict, load_config, seqs2words
-from compat import fill_options
+from compat import fill_options, dummy_options
 from hypgraph import HypGraphRenderer
 from console import ConsoleInterfaceDefault
 
@@ -149,16 +149,13 @@ class Translator(object):
             options.append(load_config(model))
             # backward compatibility
             fill_options(options[-1])
+            # dummy features for single source using multi-source code
+            dummy_options(options[-1])
 
         self._options = options
 
-        for i, _ in enumerate(self._models):
-            for attr in ['multisource_type']:
-                if attr not in self._options[i]:
-                    self._options[i][attr] = None
-            for attr in ['extra_sources']:
-                if attr not in self._options[i]:
-                    self._options[i][attr] = []
+
+
 
     def _build_dictionaries(self):
         """
@@ -683,7 +680,6 @@ class Translator(object):
                                        detailed=True,
                                        highlight_best=True
             )
-
 
     def write_translations(self, output_file, translations, translation_settings):
         """

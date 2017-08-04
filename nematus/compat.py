@@ -2,7 +2,7 @@
 Default options for backward compatibility
 '''
 
-#hacks for using old models with missing options (dict is modified in-place)
+# hacks for using old models with missing options (dict is modified in-place)
 def fill_options(options):
     if not 'dropout_embedding' in options:
         options['dropout_embedding'] = 0
@@ -67,3 +67,11 @@ def fill_options(options):
             options['dec_high_recurrence_transition_depth'] = 2
         else:
             options['dec_high_recurrence_transition_depth'] = 1
+
+def dummy_options(options):
+    for attr in ['multisource_type']:
+        if attr not in options:
+            options[attr] = None
+    for attr in ['extra_sources']:
+        if attr not in options:
+            options[attr] = []

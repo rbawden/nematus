@@ -243,9 +243,11 @@ if __name__ == "__main__":
     for xs, y in ti:
 
         print("\tbefore")
-        print(len(xs[0]))
-        print(len(xs[1]))
-        print(len(y))
+        #print(len(xs[0]))
+        #print(len(xs[1]))
+        #print(len(y))
+
+        print(xs[0])
 
 
         xs, x_masks, y, y_masks = prepare_multi_data(xs, y, maxlen=50, n_factors=1)
@@ -254,6 +256,10 @@ if __name__ == "__main__":
 
         if xs is not None:
             print(xs[0].shape, x_masks[0].shape)
-            print(xs[1].shape, x_masks[1].shape)
-            print(y.shape, y_masks.shape)
+            #print(xs[1].shape, x_masks[1].shape)
+            #print(y.shape, y_masks.shape)
+
+            print(xs[0])
+            print(xs[1])
+
             raw_input()

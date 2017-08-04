@@ -173,6 +173,9 @@ def init_params(options):
     # allow for multiple encoders
     num_encoders = len(options['extra_sources']) + 1
 
+    if not options['tie_encoder_decoder_embeddings']:
+        params = get_layer_param('embedding')(options, params, options['n_words'],
+                                              options['dim_word'], suffix='_dec')
     # initialise encoder for every possible encoder (for now they have have the same parameter values)
     for i in range(num_encoders):
         if num_encoders > 1:
@@ -182,13 +185,7 @@ def init_params(options):
 
         # embedding
         params = get_layer_param('embedding')(options, params, options['n_words_src'][i],
-                                              options['dim_per_factor'], options['factors'], suffix='' + suff)
-
-
-        if i == 0:
-            if not options['tie_encoder_decoder_embeddings']:
-                params = get_layer_param('embedding')(options, params, options['n_words'],
-                                                      options['dim_word'], suffix='_dec')
+                                              options['dim_per_factor'], options['factors'], suffix=suff)
 
         # encoder: bidirectional RNN: same for single and multi-source
         params = get_layer_param(options['encoder'])(options, params,
@@ -211,20 +208,20 @@ def init_params(options):
 
                 if level <= options['enc_depth_bidirectional']:
                     params = get_layer_param(options['encoder'])(options, params,
-                                                                 prefix=prefix_f + suff,
+                                                                 prefix=prefix_f,
                                                                  nin=options['dim'],
                                                                  dim=options['dim'],
                                                                  recurrence_transition_depth=options[
                                                                      'enc_recurrence_transition_depth'])
                     params = get_layer_param(options['encoder'])(options, params,
-                                                                 prefix=prefix_r + suff,
+                                                                 prefix=prefix_r,
                                                                  nin=options['dim'],
                                                                  dim=options['dim'],
                                                                  recurrence_transition_depth=options[
                                                                      'enc_recurrence_transition_depth'])
                 else:
                     params = get_layer_param(options['encoder'])(options, params,
-                                                                 prefix=prefix_f + suff,
+                                                                 prefix=prefix_f,
                                                                  nin=options['dim'] * 2,
                                                                  dim=options['dim'] * 2,
                                                                  recurrence_transition_depth=options[
@@ -694,15 +691,18 @@ def build_multisource_model(tparams, options):
     # initial decoder state
     # different ways of combining the two attention mechanisms
     if options['multisource_type'] in ('att-concat', 'att-gate'):
-        ctx_mean_combo = concatenate(ctx_means, axis=1)
+        # mean of contexts
+        ctx_mean_combo = numpy.sum(ctx_means)/len(ctx_means)
+
+        #ctx_mean_combo = concatenate(ctx_means, axis=1)
 
         # linear projection to context dimensions
-        ctx_mean_combo = tensor.dot(ctx_mean_combo, wn(pp('decoder', 'W_projcomb_att'))) + \
-                         tparams[pp('decoder', 'b_projcomb')]
+        #ctx_mean_combo = tensor.dot(ctx_mean_combo, wn(pp('decoder', 'W_projcomb_att'))) + \
+        #                 tparams[pp('decoder', 'b_projcomb')]
 
-        if options['layer_normalisation']:
-            ctx_mean_combo = layer_norm(ctx_mean_combo, tparams[pp('decoder', 'W_projcomb_att_lnb')],
-                              tparams[pp('decoder', 'W_projcomb_att_lns')])
+        #if options['layer_normalisation']:
+        #    ctx_mean_combo = layer_norm(ctx_mean_combo, tparams[pp('decoder', 'W_projcomb_att_lnb')],
+        #                      tparams[pp('decoder', 'W_projcomb_att_lns')])
 
         #ctx_mean_combo.tag.test_value = numpy.ones(shape=(10, 2048)).astype(floatX)
         # print('ctx mean = ', ctx_mean_combo.tag.test_value.shape)
@@ -761,9 +761,8 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
         ctx_means[i] = ctxs[i].mean(0)
         # ctx_mean = concatenate([proj[0][-1],projr[0][-1]], axis=proj[0].ndim-2)
 
-    # combine the contexts for initialisation
-    # TODO: change to concatenate? just sum for now
-    ctx_mean = sum(ctx_means)
+    # combine the contexts for initialisation by mean of context
+    ctx_mean = sum(ctx_means)/len(ctx_means)
 
     init_state = get_layer_constr('ff')(tparams, ctx_mean, options, dropout,
                                         dropout_probability=options['dropout_hidden'],
@@ -1372,7 +1371,7 @@ def multi_pred_probs(f_log_probs, prepare_multi_data, options, iterator, verbose
                                                     n_words=options['n_words'],
                                                     n_factors=options['factors'])
 
-        ### in optional save weights mode.
+        # in optional save weights mode.
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
         if alignweights:
             pprobs, attentions = f_log_probs(*inps)
