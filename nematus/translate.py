@@ -154,16 +154,12 @@ class Translator(object):
 
         self._options = options
 
-
-
-
     def _build_dictionaries(self):
         """
         Builds and inverts source and target dictionaries, taken
         from the first model since all of them must have the same
         vocabulary.
         """
-
         # is at least one model multi-source?
         if len([True for options in self._options if options['multisource_type'] is not None ]) > 0:
             multisource = True
@@ -180,7 +176,6 @@ class Translator(object):
             if aux_dictionaries_source is None or len(aux_dictionaries_source)<1:
                 logging.info("No auxiliary input source dicts provided so reusing the main source dicts.")
                 aux_dictionaries_source = dictionaries_source
-
 
         # load and invert source dictionaries
         word_dicts = []

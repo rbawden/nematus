@@ -894,8 +894,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         h1 = m_[:, None] * h1 + (1. - m_)[:, None] * h_
 
 
-        print("m_ = ", m_.tag.test_value.shape)
-        print(m_[:, None].tag.test_value.shape)
+        #print("m_ = ", m_.tag.test_value.shape)
+        #print(m_[:, None].tag.test_value.shape)
 
         pstates_, pctxs__, alphas, ctxs_ = [], [], [], []
 
@@ -960,7 +960,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             g_ = tensor.exp(g_ - g_.max(0, keepdims=True)) # TODO: why max?
             g_ = g_ / g_.sum(0, keepdims=True)
 
-            print("g_ = ", g_.tag.test_value.shape)
+            #print("g_ = ", g_.tag.test_value.shape)
 
             # TODO: check dimensions
             ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
