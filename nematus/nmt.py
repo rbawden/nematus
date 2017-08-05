@@ -128,7 +128,7 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
     n_samples = len(seqs_xs[0])
 
     # TODO: is there a way of making this different for different inputs? for now take the max of all input sources
-    maxlen_xs = [max([numpy.max(lengths_x) + 1 for lengths_x in lengths_xs])] * len(lengths_xs)
+    maxlen_xs = [max([numpy.max(lengths_x) for lengths_x in lengths_xs]) + 1] * len(lengths_xs)
     maxlen_y = numpy.max(lengths_y) + 1
 
     # prepare numpy objects and masks
@@ -192,14 +192,12 @@ def init_params(options):
                                                      prefix='encoder' + suff,
                                                      nin=options['dim_word'],
                                                      dim=options['dim'],
-                                                     recurrence_transition_depth=options[
-                                                         'enc_recurrence_transition_depth'])
+                                                     recurrence_transition_depth=options['enc_recurrence_transition_depth'])
         params = get_layer_param(options['encoder'])(options, params,
                                                      prefix='encoder_r' + suff,
                                                      nin=options['dim_word'],
                                                      dim=options['dim'],
-                                                     recurrence_transition_depth=options[
-                                                         'enc_recurrence_transition_depth'])
+                                                     recurrence_transition_depth=options['enc_recurrence_transition_depth'])
 
         if options['enc_depth'] > 1:
             for level in range(2, options['enc_depth'] + 1):
@@ -211,21 +209,18 @@ def init_params(options):
                                                                  prefix=prefix_f,
                                                                  nin=options['dim'],
                                                                  dim=options['dim'],
-                                                                 recurrence_transition_depth=options[
-                                                                     'enc_recurrence_transition_depth'])
+                                                                 recurrence_transition_depth=options['enc_recurrence_transition_depth'])
                     params = get_layer_param(options['encoder'])(options, params,
                                                                  prefix=prefix_r,
                                                                  nin=options['dim'],
                                                                  dim=options['dim'],
-                                                                 recurrence_transition_depth=options[
-                                                                     'enc_recurrence_transition_depth'])
+                                                                 recurrence_transition_depth=options['enc_recurrence_transition_depth'])
                 else:
                     params = get_layer_param(options['encoder'])(options, params,
                                                                  prefix=prefix_f,
                                                                  nin=options['dim'] * 2,
                                                                  dim=options['dim'] * 2,
-                                                                 recurrence_transition_depth=options[
-                                                                     'enc_recurrence_transition_depth'])
+                                                                 recurrence_transition_depth=options['enc_recurrence_transition_depth'])
 
     # Context dimension(s) - as many as there are input sources
     ctxdims = [2 * options['dim']] * (1 + len(options['extra_sources']))
@@ -250,8 +245,7 @@ def init_params(options):
                                                      nin=options['dim_word'],
                                                      dim=options['dim'],
                                                      dimctx=[ctxdims[0]],
-                                                     recurrence_transition_depth=options[
-                                                         'dec_base_recurrence_transition_depth'])
+                                                     recurrence_transition_depth=options['dec_base_recurrence_transition_depth'])
 
     # deeper layers of the decoder
     if options['dec_depth'] > 1:
@@ -708,8 +702,10 @@ def build_multisource_model(tparams, options):
         # print('ctx mean = ', ctx_mean_combo.tag.test_value.shape)
 
     else:
-        logging.error("No attention combination was specified in building of multi-source model.")
+        assert len(ctx_means) == 0, 'you must specify a multi-source type compatible with build_multisource_model()'
+        ctx_mean_combo = ctx_means[i]
 
+    # initial decoder state
     init_state = get_layer_constr('ff')(tparams, ctx_mean_combo, options, dropout,
                                         dropout_probability=options['dropout_hidden'],
                                         prefix='ff_state', activ='tanh')
@@ -1354,12 +1350,8 @@ def multi_pred_probs(f_log_probs, prepare_multi_data, options, iterator, verbose
 
     for inputs, y in iterator:
 
-        # print(inputs)
-
         # for potentially multiple inputs
         for input in inputs:
-
-            # print("hi")
             # ensure consistency in number of factors
             if len(input[0][0]) != options['factors']:
                 logging.error('Mismatch between number of factors in settings ({0}), '
@@ -1871,7 +1863,7 @@ def train(dim_word=512,  # word vector dimensionality
                     xs, x_masks, y, y_mask = prepare_multi_data(xs, y,
                                                                 maxlen=maxlen,
                                                                 n_factors=factors,
-                                                                n_words_src=n_words_src, # TODO: diff for multi-source?
+                                                                n_words_src=all_n_words_src, # TODO: diff for multi-source?
                                                                 n_words=n_words)
 
                     if any(xx is None for xx in xs):
@@ -1880,10 +1872,13 @@ def train(dim_word=512,  # word vector dimensionality
                         continue
                 else:
                     # only one input so use idx 0 of x and n_words_src
-                    xs, x_masks, y, y_mask = prepare_multi_data(xs, y, maxlen=maxlen,
+                    x, x_mask, y, y_mask = prepare_data(xs[0], y, maxlen=maxlen,
                                                               n_factors=factors,
                                                               n_words_src=n_words_src,
                                                               n_words=n_words)
+                    xs = [x]
+                    x_masks = [x_mask]
+
                     if xs[0] is None:
                         logging.warning('Minibatch with zero sample under length %d' % maxlen)
                         training_progress.uidx -= 1
@@ -2139,7 +2134,7 @@ def train(dim_word=512,  # word vector dimensionality
                 if multisource_type is not None:
                     valid_errs, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
                 else:
-                    valid_errs, alignment = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
+                    valid_errs, alignment = pred_probs(f_log_probs, prepare_data, model_options, valid)
 
                 valid_err = valid_errs.mean()
                 training_progress.history_errs.append(float(valid_err))

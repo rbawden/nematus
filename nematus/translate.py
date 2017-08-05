@@ -252,13 +252,11 @@ class Translator(object):
             if self._device_list is not None and len(self._device_list) != 0:
                 deviceid = self._device_list[process_id % len(self._device_list)].strip()
             processes[process_id] = Process(target=self._start_worker, args=(process_id, deviceid))
-            print(process_id)
             processes[process_id].start()
 
         self._processes = processes
 
-
-    ### MODEL LOADING AND TRANSLATION IN CHILD PROCESS ###
+    # MODEL LOADING AND TRANSLATION IN CHILD PROCESS ###
     def _load_theano(self):
         """
         Loads models, sets theano shared variables and builds samplers.
@@ -510,7 +508,7 @@ class Translator(object):
                                    request_id=translation_settings.request_id)
             self._input_queue.put(input_item)
             source_sentences.append(words)
-            source_sentences2.append(words)
+            source_sentences2.append(aux_words)
         return idx+1, (source_sentences, source_sentences2)
 
     def _retrieve_jobs(self, num_samples, request_id, timeout=5):
@@ -601,7 +599,7 @@ class Translator(object):
         """
         """
         source_segments = input_object.readlines()
-        # multisource
+        # multi-source
         if aux_input_object is not None:
             aux_source_segments = aux_input_object.readlines()
         else:
