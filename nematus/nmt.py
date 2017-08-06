@@ -2134,7 +2134,7 @@ def train(dim_word=512,  # word vector dimensionality
                 if multisource_type is not None:
                     valid_errs, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
                 else:
-                    valid_errs, alignment = pred_probs(f_log_probs, prepare_data, model_options, valid)
+                    valid_errs, alignment = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
 
                 valid_err = valid_errs.mean()
                 training_progress.history_errs.append(float(valid_err))

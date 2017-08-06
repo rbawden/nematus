@@ -970,6 +970,26 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         elif options['multisource_type'] == "att-hier":
             # 3rd attention mechanism over inputs
             # TODO
+
+            # attention mechanism over 2 contexts
+
+            alphas.append(tensor.dot(pctxs__[i] * ctx_dropouts[2][1], wn(pp(prefix, 'U_att-hier'))) +
+                          tparams[pp(prefix, 'c_tt-hier')])
+
+            # for reference from before
+            alphas.append(tensor.dot(pctxs__[i] * ctx_dropouts[i][1], wn(pp(prefix, 'U_att' + suff))) +
+                          tparams[pp(prefix, 'c_tt' + suff)])
+            alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
+            # normalise
+            alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
+            if all_context_masks[i]:
+                alphas[i] = alphas[i] * all_context_masks[2]
+
+            hier_alpha = 1
+            # normalise
+            hier_alpha = hier_alpha / hier_alpha.sum(0, keepdims=True)
+            # apply to two contexts
+            ctx_ = (ctxs_ * hier_alpha[:, :, None]).sum(0) # current context
             1
             # same as above but calculate e_ij using context vectors rather than annotation vectors
 
