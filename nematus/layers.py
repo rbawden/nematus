@@ -523,7 +523,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             params[pp(prefix, 'U_att_wns' + suff)] = scale_mul * numpy.ones((1 * 1)).astype(floatX)
 
     # parameters still used for decoder initialisation in methods other than att-concat
-    if 'multisource_type' in options and options['multisource_type'] in ('att-concat'):
+    if options['multisource_type'] == 'att-concat':
         # linear projection
         params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx[0] + dimctx[1], dimctx[0])
         params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx[0],)).astype(floatX)
@@ -532,7 +532,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             params[pp(prefix, 'W_projcomb_att_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
 
     # TODO: check dimensions
-    if 'multisource_type' in options["multisource_type"] == "att-gate":
+    if options["multisource_type"] == "att-gate":
         #params[pp(prefix, 'W_att-gate-ym1')] = norm_weight(nin_nonlin, dimctx[0])
         #params[pp(prefix, 'W_att-gate-sm1')] = norm_weight(dim_nonlin, dimctx[0])
         params[pp(prefix, 'W_att-gate-ctx1')] = norm_weight(dimctx[0])
