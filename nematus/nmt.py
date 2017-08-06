@@ -103,14 +103,14 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
     lengths_y = [len(s) for s in seqs_y]
 
     if maxlen is not None:
-        new_seqs_xs = [[] for _ in range(len(seqs_xs))]
+        new_seqs_xs = [[] for _ in seqs_xs]
         new_seqs_y = []
-        new_lengths_xs = [[] for _ in range(len(seqs_xs))]
+        new_lengths_xs = [[] for _ in seqs_xs]
         new_lengths_y = []
 
         for i, (l_y, s_y) in enumerate(zip(lengths_y, seqs_y)):
 
-            if l_y < maxlen and all(lengths_xs[s][i] < maxlen for s in range(len(seqs_xs))):
+            if l_y < maxlen and all(lx[i] < maxlen for lx in lengths_xs):
                 for s in range(len(seqs_xs)):
                     new_seqs_xs[s].append(seqs_xs[s][i])
                     new_lengths_xs[s].append(lengths_xs[s][i])
@@ -122,18 +122,18 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
         lengths_y = new_lengths_y
         seqs_y = new_seqs_y
 
-        if len(lengths_y) < 1 and all(len(lengths_x) < 1 for lengths_x in lengths_xs):
+        if len(lengths_y) < 1 or any(len(lengths_x) < 1 for lengths_x in lengths_xs):
             return None, None, None, None
 
     n_samples = len(seqs_xs[0])
 
     # TODO: is there a way of making this different for different inputs? for now take the max of all input sources
-    maxlen_xs = [max([numpy.max(lengths_x) for lengths_x in lengths_xs]) + 1] * len(lengths_xs)
+    maxlen_xs = [numpy.max([numpy.max(lengths_x) for lengths_x in lengths_xs]) + 1] * len(lengths_xs)
     maxlen_y = numpy.max(lengths_y) + 1
 
     # prepare numpy objects and masks
-    xs = [[] for _ in range(len(seqs_xs))]
-    x_masks = [[] for _ in range(len(seqs_xs))]
+    xs = [[] for _ in seqs_xs]
+    x_masks = [[] for _ in seqs_xs]
 
     for i in range(len(seqs_xs)):
         xs[i] = numpy.zeros((n_factors, maxlen_xs[i], n_samples)).astype('int64')
