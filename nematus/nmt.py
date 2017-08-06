@@ -1874,7 +1874,7 @@ def train(dim_word=512,  # word vector dimensionality
                     # only one input so use idx 0 of x and n_words_src
                     xs, x_masks, y, y_mask = prepare_multi_data(xs, y, maxlen=maxlen,
                                                               n_factors=factors,
-                                                              n_words_src=all_words_src,
+                                                              n_words_src=all_n_words_src,
                                                               n_words=n_words)
                     #xs = [x]
                     #x_masks = [x_mask]
