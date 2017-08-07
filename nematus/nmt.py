@@ -1415,7 +1415,9 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
     alignments_json = []
 
-    for x, y in iterator:
+    # TODO: change back multi
+    for xs, y in iterator:
+        x = xs[0]
 
         # print("here")
 
