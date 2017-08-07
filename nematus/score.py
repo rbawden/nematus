@@ -60,7 +60,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
     print("normalisation = "+str(normalization_alpha))
 
     # changed for multi-source: sources are a lsit
-    def _score(pairs, alignweights=False):
+    def _score(pairs, alignweights=True):
         # sample given an input sequence and obtain scores
         scores = []
         sent_alignments = []
