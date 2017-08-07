@@ -10,7 +10,7 @@ import logging
 
 import numpy
 
-from data_iterator import TextIterator
+from data_iterator import TextIterator_orig
 from util import load_config
 from alignment_util import combine_source_target_text_1to1
 from compat import fill_options
@@ -67,7 +67,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
 
-            # TODO: make multi
+            # TODO: make multi ?
             score, alignments = pred_probs(f_log_probs, prepare_data, options[i], pairs,
                                                   normalization_alpha=normalization_alpha, alignweights=alignweights)
             scores.append(score)
@@ -77,7 +77,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
     print("n words src = "+str(options[0]['n_words_src']))
 
-    pairs = TextIterator(source_file.name, target_file.name,
+    pairs = TextIterator_orig(source_file.name, target_file.name,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
                          n_words_source=options[0]['n_words_src'], n_words_target=options[0]['n_words'],
                          batch_size=b,

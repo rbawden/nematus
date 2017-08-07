@@ -1108,6 +1108,7 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
         if options['multisource_type'] == 'att-gate':
             shared_vars.append(tparams[pp(prefix, 'W_comb_att')])
 
+
     n_steps = tensor.iscalar("n_steps")
     n_steps.tag.test_value = 50
 
