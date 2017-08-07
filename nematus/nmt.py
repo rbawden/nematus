@@ -1096,7 +1096,6 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
     for prefix in decoder_prefixes:
         shared_vars.extend([tparams[pp(prefix, 'U')],
                             tparams[pp(prefix, 'Wc')],
-                            tparams[pp(prefix, 'W_comb_att')],
                             tparams[pp(prefix, 'U_att')],
                             tparams[pp(prefix, 'c_tt')],
                             tparams[pp(prefix, 'Ux')],
@@ -1105,6 +1104,9 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
                             tparams[pp(prefix, 'Ux_nl')],
                             tparams[pp(prefix, 'b_nl')],
                             tparams[pp(prefix, 'bx_nl')]])
+
+        if options['multisource_type'] == 'att-gate':
+            shared_vars.append(tparams[pp(prefix, 'W_comb_att')])
 
     n_steps = tensor.iscalar("n_steps")
     n_steps.tag.test_value = 50
