@@ -16,7 +16,7 @@ from alignment_util import combine_source_target_text_1to1
 from compat import fill_options
 
 from theano_util import (floatX, numpy_floatX, load_params, init_theano_params)
-from nmt import (pred_probs, build_model, build_multisource_model, prepare_data, prepare_multi_data)
+from nmt import (pred_probs, multi_pred_probs, build_model, build_multisource_model, prepare_data, prepare_multi_data)
 
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import theano
@@ -56,13 +56,14 @@ def load_scorer(model, option, alignweights=None):
 def rescore_model(source_file, target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights):
     trng = RandomStreams(1234)
 
+    # changed for multi-source: sources are a lsit
     def _score(pairs, alignweights=False):
         # sample given an input sequence and obtain scores
         scores = []
         alignments = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
-            score, alignment = pred_probs(f_log_probs, prepare_data, options[i], pairs,
+            score, alignment = multi_pred_probs(f_log_probs, prepare_data, options[i], pairs,
                                           normalization_alpha=normalization_alpha, alignweights=alignweights)
             scores.append(score)
             alignments.append(alignment)
