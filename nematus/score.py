@@ -67,12 +67,15 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
 
-            score, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, options[i], pairs,
+            # TODO: make multi
+            score, alignments = pred_probs(f_log_probs, prepare_data, options[i], pairs,
                                                   normalization_alpha=normalization_alpha, alignweights=alignweights)
             scores.append(score)
             sent_alignments.append(alignments)
 
         return scores, sent_alignments
+
+    print("n words src = "+str(n_words_source=options[0]['n_words_src']))
 
     pairs = TextIterator(source_file.name, target_file.name,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
@@ -83,8 +86,8 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
     scores, alignments = _score(pairs, alignweights)
 
-    print(len(alignments))
-    print(alignments[0])
+    #print(len(alignments))
+    #print(alignments[0])
 
     source_file.seek(0)
     target_file.seek(0)

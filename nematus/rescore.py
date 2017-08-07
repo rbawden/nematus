@@ -59,7 +59,6 @@ def rescore_model(source_file, nbest_file, saveto, models, options, b, normaliza
                          maxlen=float('inf'),
                          sort_by_length=False) #TODO: sorting by length could be more efficient, but we'd have to synchronize scores with n-best list after
 
-
         scores, alignments = _score(pairs, alignweights)
 
         for i, line in enumerate(nbest_lines):
