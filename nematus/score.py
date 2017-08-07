@@ -63,7 +63,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
         sent_alignments = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
-            score, alignments = multi_pred_probs(f_log_probs, multi_prepare_data, options[i], pairs,
+            score, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, options[i], pairs,
                                           normalization_alpha=normalization_alpha, alignweights=alignweights)
             scores.append(score)
             sent_alignments.append(alignments)
