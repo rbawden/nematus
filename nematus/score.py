@@ -84,6 +84,9 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
                          maxlen=float('inf'),
                          sort_by_length=False)  # TODO: sorting by length could be more efficient, but we'd want to resort after
 
+    # TODO: whilst not multi
+    pairs = (pairs[0][0], pairs[-1])
+
     scores, alignments = _score(pairs, alignweights)
 
     #print(len(alignments))
