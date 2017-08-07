@@ -267,12 +267,6 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
     y = numpy.zeros((maxlen_y, n_samples)).astype('int64')
     y_mask = numpy.zeros((maxlen_y, n_samples)).astype(floatX)
 
-    print(xs[0].shape)
-    raw_input()
-
-    #print("len first x")
-    #print(len(xs[0]))
-
     for idx, s_y in enumerate(seqs_y):
         for i in range(len(seqs_xs)):
 
@@ -280,7 +274,9 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
             x_masks[i][:lengths_xs[i][idx] + 1, idx] = 1.
         y[:lengths_y[idx], idx] = s_y
         y_mask[:lengths_y[idx] + 1, idx] = 1.
-
+        print(lengths_xs[i][idx], idx)
+        raw_input()
+        
     return xs, x_masks, y, y_mask
 
 
