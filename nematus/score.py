@@ -31,7 +31,7 @@ def load_scorer(model, option, alignweights=None):
     tparams = init_theano_params(params)
 
     if option['multisource_type'] is None:
-        print("building multisource model")
+        print("building single source model")
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, option)
         inps = [x, x_mask, y, y_mask]
     else:
@@ -119,6 +119,8 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 def multi_rescore_model(source_files, target_file, savetos, models, options, b,
                         normalization_alpha, verbose, alignweights):
     assert len(source_files) == len(savetos)  # as many inputs as different alignments
+
+    print("multi rescore model")
 
     trng = RandomStreams(1234)
 

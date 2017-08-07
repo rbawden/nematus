@@ -1430,8 +1430,7 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
         n_done += len(x)
 
-        x, x_mask, y, y_mask = prepare_data(x, y,
-                                            n_words_src=options['n_words_src'],
+        x, x_mask, y, y_mask = prepare_data(x, y, n_words_src=options['n_words_src'],
                                             n_words=options['n_words'],
                                             n_factors=options['factors'])
 
