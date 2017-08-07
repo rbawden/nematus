@@ -97,8 +97,8 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
     # get lengths (as many for each example as the number of inputs)
     lengths_xs = []
     new_seqs_xs = []
-    for s in range(len(seqs_xs)):
-        lengths_xs.append([len(seq) for seq in seqs_xs[s]])
+    for sx in seqs_xs:
+        lengths_xs.append([len(seq) for seq in sx])
     # one output length per example
     lengths_y = [len(s) for s in seqs_y]
 
@@ -146,21 +146,10 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
 
     for idx, s_y in enumerate(seqs_y):
         for i in range(len(seqs_xs)):
-            ## print("idx", idx)
-            ## print("i", i)
-            ## print(lengths_xs[i][idx])
-            ## print("zip", zip(*seqs_xs[i][idx]))
-
             xs[i][:, :lengths_xs[i][idx], idx] = zip(*seqs_xs[i][idx])
             x_masks[i][:lengths_xs[i][idx] + 1, idx] = 1.
         y[:lengths_y[idx], idx] = s_y
         y_mask[:lengths_y[idx] + 1, idx] = 1.
-
-    #print("x and masks")
-    #print(xs[0])
-    #print(xs[1])
-    #print(len(xs), len(x_masks[0]))
-    #raw_input()
 
     return xs, x_masks, y, y_mask
 
@@ -1013,6 +1002,7 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
 
 
 # TODO: generic multi-source
+# TODO: just do two for now
 # generate sample, either with stochastic sampling or beam search. Note that
 # this function iteratively calls f_init and f_next functions.
 def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
@@ -1030,7 +1020,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
         xs = [x] + list(extra_xs)
 
     assert extra_xs is None or len(extra_xs) <= 1, 'Only accepting one extra source for now'
-    # TODO: just do two for now
     if extra_xs is not None and len(extra_xs) > 0:
         aux_x = extra_xs[0]
     else:
@@ -1342,6 +1331,7 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 # calculate the log probablities on a given corpus using translation model (multi-source version
 def multi_pred_probs(f_log_probs, prepare_multi_data, options, iterator, verbose=True, normalization_alpha=0.0,
                      alignweights=False):
+
     probs = []
     n_done = 0
 
@@ -2034,13 +2024,6 @@ def train(dim_word=512,  # word vector dimensionality
                     save(params, optimizer_params, training_progress, saveto_uidx)
                     logging.info('Done')
 
-            # make compatible with multi-source
-            #if not multisource:
-            # xs = [x]
-            #    x_masks = [x_mask]
-
-
-            #print(xs[0].shape)
             # generate some samples with the model and display them
             if sampleFreq and numpy.mod(training_progress.uidx, sampleFreq) == 0:
                 # FIXME: random selection?
@@ -2223,7 +2206,7 @@ def train(dim_word=512,  # word vector dimensionality
         if multisource_type is not None:
             valid_errs, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
         else:
-            valid_errs, alignment = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
+            valid_errs, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
         valid_err = valid_errs.mean()
 
         logging.info('Valid {}'.format(valid_err))

@@ -16,7 +16,7 @@ from alignment_util import combine_source_target_text_1to1
 from compat import fill_options
 
 from theano_util import (floatX, numpy_floatX, load_params, init_theano_params)
-from nmt import (pred_probs, build_model, prepare_data, prepare_multi_data)
+from nmt import (pred_probs, build_model, build_multisource_model, prepare_data, prepare_multi_data)
 
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import theano
@@ -30,11 +30,11 @@ def load_scorer(model, option, alignweights=None):
     params = load_params(model, param_list)
     tparams = init_theano_params(params)
 
-    if option['multisource_type'] is not None:
+    if option['multisource_type'] is None:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, option)
         inps = [x, x_mask, y, y_mask]
     else:
-        trng, use_noise, x, x_mask, aux_x, aux_x_mask, y, y_mask, opt_ret, cost = build_model(tparams, option)
+        trng, use_noise, x, x_mask, aux_x, aux_x_mask, y, y_mask, opt_ret, cost = build_multisource_model(tparams, option)
         inps = [x, x_mask, aux_x, aux_x_mask, y, y_mask]
 
     use_noise.set_value(0.)
