@@ -62,6 +62,8 @@ def load_scorer(model, option, alignweights=None):
 def rescore_model(source_file, target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights):
     trng = RandomStreams(1234)
 
+    print("normalisation = "+str(normalization_alpha))
+
     # changed for multi-source: sources are a lsit
     def _score(pairs, alignweights=False):
         # sample given an input sequence and obtain scores
@@ -69,8 +71,9 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
         sent_alignments = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
+
             score, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, options[i], pairs,
-                                          normalization_alpha=normalization_alpha, alignweights=alignweights)
+                                                  normalization_alpha=normalization_alpha, alignweights=alignweights)
             scores.append(score)
             sent_alignments.append(alignments)
 
@@ -87,7 +90,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
     source_file.seek(0)
     target_file.seek(0)
-    source_lines = source_file.readlines()
+    #source_lines = source_file.readlines()
     target_lines = target_file.readlines()
 
     for i, line in enumerate(target_lines):
