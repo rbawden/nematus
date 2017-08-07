@@ -31,6 +31,7 @@ def load_scorer(model, option, alignweights=None):
     tparams = init_theano_params(params)
 
     if option['multisource_type'] is None:
+        print("building multisource model")
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, option)
         inps = [x, x_mask, y, y_mask]
     else:
@@ -150,19 +151,19 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
     for i, line in enumerate(target_lines):
         score_str = ' '.join(map(str, [s[i] for s in scores]))
         if verbose:
-            saveto.write('{0} '.format(line.strip()))
-        saveto.write('{0}\n'.format(score_str))
+            savetos[i].write('{0} '.format(line.strip()))
+        savetos[i].write('{0}\n'.format(score_str))
 
     # optional save weights mode.
     if alignweights:
         for i, alignment in enumerate(alignments):
             # write out the alignments.
-            temp_name = saveto.name + str(i) + ".json"
+            temp_name = savetos[i].name + str(i) + ".json"
             with tempfile.NamedTemporaryFile(prefix=temp_name) as align_OUT:
                 for line in alignment:
                     align_OUT.write(line + "\n")
                 # combine the actual source and target words.
-                combine_source_target_text_1to1(source_files[i], target_file, saveto.name, align_OUT, suffix=str(i))
+                combine_source_target_text_1to1(source_files[i], target_file, savetos[i].name, align_OUT, suffix=str(i))
 
 
 def main(models, source_files, nbest_file, saveto, b=80, normalization_alpha=0.0, verbose=False, alignweights=False):
@@ -177,7 +178,8 @@ def main(models, source_files, nbest_file, saveto, b=80, normalization_alpha=0.0
     if len(source_files)==1:
         rescore_model(source_files[0], nbest_file, saveto, models, options, b, normalization_alpha, verbose, alignweights)
     else:
-        multi_rescore_model(source_files, nbest_file, saveto, models, options, b, normalization_alpha, verbose, alignweights)
+        savetos = [saveto+"_"+str(i) for i in range(len(source_files))]
+        multi_rescore_model(source_files, nbest_file, savetos, models, options, b, normalization_alpha, verbose, alignweights)
 
 
 if __name__ == "__main__":

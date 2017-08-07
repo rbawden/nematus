@@ -448,6 +448,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                                   extra_context_mask=extra_x_masks[0],
                                                   extra_pctx=extra_pctxs_[0])
     else:
+        print("single decoder layer")
         proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
                                                     prefix='decoder',
                                                     mask=y_mask, context=ctx,
@@ -1351,11 +1352,6 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
         xs, x_masks, y, y_mask = multi_prepare_data(inputs, y, n_words_src=options['n_words_src'],
                                                     n_words=options['n_words'],
                                                     n_factors=options['factors'])
-
-
-        #print("test")
-        #print(xs[0][:10])
-        #raw_input()
 
         # in optional save weights mode.
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
