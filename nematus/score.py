@@ -37,8 +37,9 @@ def load_scorer(model, option, alignweights=None):
         trng, use_noise, x, x_mask, aux_x, aux_x_mask, y, y_mask, opt_ret, cost = build_multisource_model(tparams, option)
         inps = [x, x_mask, aux_x, aux_x_mask, y, y_mask]
 
-
-    print(inps)
+    for inp in inps:
+        print(inp)
+        print(inp.tag.test_value.shape)
 
     use_noise.set_value(0.)
 
