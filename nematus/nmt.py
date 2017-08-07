@@ -604,7 +604,6 @@ def build_model(tparams, options):
                                                logit_shp[2]]))
 
     # cost
-    # TODO: modify for multisource
     y_flat = y.flatten()
     y_flat_idx = tensor.arange(y_flat.shape[0]) * options['n_words'] + y_flat
     cost = -tensor.log(probs.flatten()[y_flat_idx])
@@ -1354,9 +1353,9 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
                                                     n_factors=options['factors'])
 
 
-        print("test")
-        print(xs[0][:10])
-        raw_input()
+        #print("test")
+        #print(xs[0][:10])
+        #raw_input()
 
         # in optional save weights mode.
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
