@@ -1355,7 +1355,7 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
 
 
         print("test")
-        print(xs[:10])
+        print(xs[0][:10])
         raw_input()
 
         # in optional save weights mode.
