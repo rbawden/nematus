@@ -1329,7 +1329,7 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
 
 # calculate the log probablities on a given corpus using translation model (multi-source version
-def multi_pred_probs(f_log_probs, prepare_multi_data, options, iterator, verbose=True, normalization_alpha=0.0,
+def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose=True, normalization_alpha=0.0,
                      alignweights=False):
 
     probs = []
@@ -1349,12 +1349,14 @@ def multi_pred_probs(f_log_probs, prepare_multi_data, options, iterator, verbose
                 sys.exit(1)
 
         n_done += len(inputs[0])
-        xs, x_masks, y, y_mask = prepare_multi_data(inputs, y, n_words_src=options['n_words_src'],
+        xs, x_masks, y, y_mask = multi_prepare_data(inputs, y, n_words_src=options['n_words_src'],
                                                     n_words=options['n_words'],
                                                     n_factors=options['factors'])
 
         # in optional save weights mode.
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
+        print("multi pred probs")
+        print(inps)
         if alignweights:
             pprobs, attentions = f_log_probs(*inps)
             for i, attention in enumerate(attentions):

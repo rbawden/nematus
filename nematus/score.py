@@ -37,9 +37,11 @@ def load_scorer(model, option, alignweights=None):
         trng, use_noise, x, x_mask, aux_x, aux_x_mask, y, y_mask, opt_ret, cost = build_multisource_model(tparams, option)
         inps = [x, x_mask, aux_x, aux_x_mask, y, y_mask]
 
+    print("inputs in load scorer")
     for inp in inps:
         print(inp)
         print(inp.tag.test_value.shape)
+    print(cost)
 
     use_noise.set_value(0.)
 
@@ -107,7 +109,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
 # Multi-source version of rescore model (just 2 inputs for now)
 # source_files, savetos are lists
-def multi_rescore_model(source_files, target_file, saveto, models, options, b,
+def multi_rescore_model(source_files, target_file, savetos, models, options, b,
                         normalization_alpha, verbose, alignweights):
     assert len(source_files) == len(savetos)  # as many inputs as different alignments
 
@@ -120,7 +122,7 @@ def multi_rescore_model(source_files, target_file, saveto, models, options, b,
         aux_alignments = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
-            score, alignment, aux_alignment = pred_probs(f_log_probs, prepare_multi_data, options[i],
+            score, alignment, aux_alignment = multi_pred_probs(f_log_probs, prepare_multi_data, options[i],
                                                          pairs, normalization_alpha=normalization_alpha,
                                                          alignweights=alignweights)
             scores.append(score)
