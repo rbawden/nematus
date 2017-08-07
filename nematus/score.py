@@ -60,15 +60,15 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
     def _score(pairs, alignweights=False):
         # sample given an input sequence and obtain scores
         scores = []
-        alignments = []
+        sent_alignments = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
-            score, alignment = multi_pred_probs(f_log_probs, prepare_data, options[i], pairs,
+            score, alignments = multi_pred_probs(f_log_probs, multi_prepare_data, options[i], pairs,
                                           normalization_alpha=normalization_alpha, alignweights=alignweights)
             scores.append(score)
-            alignments.append(alignment)
+            sent_alignments.append(alignments)
 
-        return scores, alignments
+        return scores, sent_alignments
 
     pairs = TextIterator(source_file.name, target_file.name,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
