@@ -83,7 +83,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
     scores, alignments = _score(pairs, alignweights)
 
-    print(alignments.shape)
+    print(len(alignments))
     print(alignments[0][0])
 
     source_file.seek(0)
