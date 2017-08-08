@@ -705,7 +705,7 @@ def build_multisource_model(tparams, options):
         init_state = tensor.tile(init_state, (options['dec_depth'], 1, 1))
 
     # build decoder
-    logit, opt_ret, _ = build_decoder_orig(tparams, options, y, ctxs[0], init_state, dropout,
+    logit, opt_ret, _ = build_decoder(tparams, options, y, ctxs[0], init_state, dropout,
                                       x_mask=x_masks[0], y_mask=y_mask, sampling=False,
                                       extra_x_masks=x_masks[1:], extra_ctxs=ctxs[1:])
 
