@@ -555,8 +555,7 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                    pctx_=None,
                    recurrence_transition_depth=2,
                    truncate_gradient=-1,
-                   profile=False,
-                   **kwargs):
+                   profile=False):
     assert context, 'Context must be provided'
 
     if one_step:
@@ -752,8 +751,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                          profile=False,
                          extra_context=None,
                          extra_pctx_=None,
-                         extra_context_mask=None,
-                         **kwargs):
+                         extra_context_mask=None):
     # check inputs for multi-source inputs
     assert context and extra_context, 'At least two contexts must be provided'
 

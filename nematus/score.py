@@ -22,6 +22,8 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import theano
 
 
+
+
 # TODO: make generic for multi-source
 def load_scorer(model, option, alignweights=None):
     # load model parameters and set theano shared variables
