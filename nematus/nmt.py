@@ -392,8 +392,10 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     # fill with Nones
     for i in range(len(extra_ctxs) - len(extra_pctxs_)):
+        print("have to fill extra pctx")
         extra_pctxs_.append(None)
     for i in range(len(extra_ctxs) - len(extra_x_masks)):
+        print("have to fill extra x masks")
         extra_x_masks.append(None)
 
     # tell RNN whether to advance just one step at a time (for sampling) or loop through sequence (for training)
@@ -772,7 +774,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     if theano.config.compute_test_value != 'off':
         init_state.tag.test_value = numpy.random.rand(*init_state_old.tag.test_value.shape).astype(floatX)
 
-    logit, opt_ret, ret_state = build_decoder_orig(tparams, options, y, ctxs[0], init_state, dropout,
+    logit, opt_ret, ret_state = build_decoder(tparams, options, y, ctxs[0], init_state, dropout,
                                               x_mask=None, y_mask=None, sampling=True,
                                               extra_x_masks=[], extra_ctxs=ctxs[1:])
 
@@ -833,7 +835,7 @@ def build_sampler(tparams, options, use_noise, trng, return_alignment=False):
     if theano.config.compute_test_value != 'off':
         init_state.tag.test_value = numpy.random.rand(*init_state_old.tag.test_value.shape).astype(floatX)
 
-    logit, opt_ret, ret_state = build_decoder_orig(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_mask=None,
+    logit, opt_ret, ret_state = build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_mask=None,
                                               sampling=True)
 
     # compute the softmax probability
@@ -940,7 +942,7 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
 
     def decoder_step(y, init_state, ctx, pctx_, *shared_vars):
 
-        logit, opt_ret, ret_state = build_decoder_orig(tparams, options, y, ctx, init_state, dropout, x_mask=x_mask,
+        logit, opt_ret, ret_state = build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=x_mask,
                                                   y_mask=None, sampling=True, pctx_=pctx_, shared_vars=shared_vars)
 
         # compute the softmax probability
