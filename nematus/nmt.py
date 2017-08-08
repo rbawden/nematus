@@ -390,6 +390,9 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     assert len(extra_ctxs) == (num_encoders - 1), 'Incompatible extra context provided'
 
+    print("num extra_ctxs = ", len(extra_ctxs))
+    print("num extra pctxs = ", len(extra_pctxs_))
+    print("num extra xmasks = ", len(extra_x_masks))
     # fill with Nones
     for i in range(len(extra_ctxs) - len(extra_pctxs_)):
         print("have to fill extra pctx")
@@ -450,7 +453,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                                   extra_context_mask=extra_x_masks[0],
                                                   extra_pctx_=extra_pctxs_[0])
     else:
-        print("single decoder layer")
+        #print("single decoder layer")
         proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
                                                     prefix='decoder',
                                                     mask=y_mask, context=ctx,
@@ -643,6 +646,8 @@ def build_multisource_model(tparams, options):
     ctxs = [[] for _ in range(num_encoders)]
     n_samples = [[] for _ in range(num_encoders)]
     ctx_means = [[] for _ in range(num_encoders)]
+
+    print("num_encoders = ", num_encoders)
     # ------------ encoder(s) ------------
     for i in range(num_encoders):
         suff = str(i)
