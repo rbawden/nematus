@@ -363,6 +363,8 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
     # context will be the concatenation of forward and backward rnns
     ctx = concatenate([proj[0], projr[0][::-1]], axis=proj[0].ndim - 1)
 
+    print(ctx.tag.test_value.shape)
+
     # print("projs = ", proj[0].tag.test_value.shape, projr[0][::-1])
 
     # forward encoder layers after bidirectional layers are concatenated
@@ -390,15 +392,15 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     assert len(extra_ctxs) == (num_encoders - 1), 'Incompatible extra context provided'
 
-    print("num extra_ctxs = ", len(extra_ctxs))
-    print("num extra pctxs = ", len(extra_pctxs_))
-    print("num extra xmasks = ", len(extra_x_masks))
+    #print("num extra_ctxs = ", len(extra_ctxs))
+    #print("num extra pctxs = ", len(extra_pctxs_))
+    #print("num extra xmasks = ", len(extra_x_masks))
     # fill with Nones
     for i in range(len(extra_ctxs) - len(extra_pctxs_)):
-        print("have to fill extra pctx")
+        #print("have to fill extra pctx")
         extra_pctxs_.append(None)
     for i in range(len(extra_ctxs) - len(extra_x_masks)):
-        print("have to fill extra x masks")
+        #print("have to fill extra x masks")
         extra_x_masks.append(None)
 
     # tell RNN whether to advance just one step at a time (for sampling) or loop through sequence (for training)
@@ -680,7 +682,7 @@ def build_multisource_model(tparams, options):
     # ------------ DECODER ------------
     # initial decoder state
     # different ways of combining the two attention mechanisms
-    if options['multisource_type'] in ('att-concat', 'att-gate'):
+    if options['multisource_type'] in ('att-concat', 'att-gate', 'att-hier'):
         # mean of contexts
         ctx_mean_combo = numpy.sum(ctx_means)/len(ctx_means)
 
@@ -1366,7 +1368,7 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
 
         # in optional save weights mode.
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
-        print("multi pred probs")
+        #print("multi pred probs")
         #print(inps)
         if alignweights:
             pprobs, attentions = f_log_probs(*inps)
@@ -2406,7 +2408,7 @@ if __name__ == '__main__':
                        help="number of auxiliary network vocabularies per extra input (in the same order")
     multi.add_argument('--extra_valid_sources', type=str, metavar='PATH', default=[], nargs='+',
                        help="auxiliary parallel validation corpora (source)")
-    multi.add_argument('--multisource_type', choices=("att-concat", "att-gate"), default=None)
+    multi.add_argument('--multisource_type', choices=("att-concat", "att-gate", "att-hier"), default=None)
     multi.add_argument('--extra_n_words_src', type=int, nargs="+", default=[], metavar='INT',
                          help="extra source vocabulary size (default: %(default)s)")
 

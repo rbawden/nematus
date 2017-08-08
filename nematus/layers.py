@@ -973,6 +973,10 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             # ctxs already in common dimension space
 
+            print("ctx = ", ctxs_[0].tag.test_value.shape)
+            print("extra ctx = ", ctxs_[1].tag.test_value.shape)
+
+
             # apply dropout?? -> TODO
             hier_alpha = tensor.dot(ctxs_, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
 
