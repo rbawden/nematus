@@ -148,9 +148,7 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
             x_masks[i][:lengths_xs[i][idx] + 1, idx] = 1.
         y[:lengths_y[idx], idx] = s_y
         y_mask[:lengths_y[idx] + 1, idx] = 1.
-        print(lengths_xs[i][idx], idx)
-        raw_input()
-        
+
     return xs, x_masks, y, y_mask
 
 
