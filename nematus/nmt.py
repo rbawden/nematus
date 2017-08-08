@@ -437,7 +437,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                                   prefix='decoder',
                                                   mask=y_mask, context=ctx,
                                                   context_mask=x_mask,
-                                                  pctx=pctx_,
+                                                  pctx_=pctx_,
                                                   one_step=one_step,
                                                   init_state=init_state[0],
                                                   recurrence_transition_depth=options['dec_base_recurrence_transition_depth'],
@@ -448,7 +448,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                                   profile=profile,
                                                   extra_context=extra_ctxs[0],
                                                   extra_context_mask=extra_x_masks[0],
-                                                  extra_pctx=extra_pctxs_[0])
+                                                  extra_pctx_=extra_pctxs_[0])
     else:
         print("single decoder layer")
         proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
