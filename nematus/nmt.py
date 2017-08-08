@@ -361,7 +361,7 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
     # context will be the concatenation of forward and backward rnns
     ctx = concatenate([proj[0], projr[0][::-1]], axis=proj[0].ndim - 1)
 
-    print(ctx.tag.test_value.shape)
+    #print(ctx.tag.test_value.shape)
 
     # print("projs = ", proj[0].tag.test_value.shape, projr[0][::-1])
 
