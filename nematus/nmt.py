@@ -88,10 +88,6 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
 def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_words=30000, n_factors=1):
     # ensure the same length for all inputs and target
 
-    #print(len(seqs_xs))
-    #print('seq length', len(seqs_xs[0]))
-
-    # print([len(seq_x) for seq_x in list(seqs_xs) + [seqs_y]])
     assert len(set(len(seq_x) for seq_x in list(seqs_xs) + [seqs_y])) == 1
 
     # get lengths (as many for each example as the number of inputs)
@@ -292,9 +288,6 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
     # word embedding for backward rnn (source)
     embr = get_layer_constr('embedding')(tparams, xr, suffix=suffix, factors=options['factors'])
 
-    # debug sizes
-    # print('embedding : ', emb.tag.test_value.shape)
-
     if options['use_dropout']:
         source_dropout = dropout((n_timesteps, n_samples, 1), options['dropout_source'])
         if not sampling:
@@ -361,10 +354,6 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
     # context will be the concatenation of forward and backward rnns
     ctx = concatenate([proj[0], projr[0][::-1]], axis=proj[0].ndim - 1)
 
-    #print(ctx.tag.test_value.shape)
-
-    # print("projs = ", proj[0].tag.test_value.shape, projr[0][::-1])
-
     # forward encoder layers after bidirectional layers are concatenated
     for level in range(options['enc_depth_bidirectional'] + 1, options['enc_depth'] + 1):
         ctx += get_layer_constr(options['encoder'])(tparams, ctx, options, dropout,
@@ -390,15 +379,10 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     assert len(extra_ctxs) == (num_encoders - 1), 'Incompatible extra context provided'
 
-    #print("num extra_ctxs = ", len(extra_ctxs))
-    #print("num extra pctxs = ", len(extra_pctxs_))
-    #print("num extra xmasks = ", len(extra_x_masks))
     # fill with Nones
     for i in range(len(extra_ctxs) - len(extra_pctxs_)):
-        #print("have to fill extra pctx")
         extra_pctxs_.append(None)
     for i in range(len(extra_ctxs) - len(extra_x_masks)):
-        #print("have to fill extra x masks")
         extra_x_masks.append(None)
 
     # tell RNN whether to advance just one step at a time (for sampling) or loop through sequence (for training)
@@ -453,7 +437,6 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                                   extra_context_mask=extra_x_masks[0],
                                                   extra_pctx_=extra_pctxs_[0])
     else:
-        #print("single decoder layer")
         proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
                                                     prefix='decoder',
                                                     mask=y_mask, context=ctx,
@@ -647,7 +630,6 @@ def build_multisource_model(tparams, options):
     n_samples = [[] for _ in range(num_encoders)]
     ctx_means = [[] for _ in range(num_encoders)]
 
-    print("num_encoders = ", num_encoders)
     # ------------ encoder(s) ------------
     for i in range(num_encoders):
         suff = str(i)
@@ -664,11 +646,6 @@ def build_multisource_model(tparams, options):
         # or you can use the last state of forward + backward encoder rnns
         # ctx_mean = concatenate([proj[0][-1], projr[0][-1]], axis=proj[0].ndim-2)
 
-        # debug sizes
-        # print('x' + str(i) + ':', xs[i].tag.test_value.shape)
-        # print('ctx'+str(i)+':', ctxs[i].tag.test_value.shape)
-        # print('ctx mean'+str(i)+':',ctx_means[i].tag.test_value.shape)
-
     # utility function to look up parameters and apply weight normalization if enabled
     def wn(param_name):
         param = tparams[param_name]
@@ -683,19 +660,6 @@ def build_multisource_model(tparams, options):
     if options['multisource_type'] in ('att-concat', 'att-gate', 'att-hier'):
         # mean of contexts
         ctx_mean_combo = numpy.sum(ctx_means)/len(ctx_means)
-
-        #ctx_mean_combo = concatenate(ctx_means, axis=1)
-
-        # linear projection to context dimensions
-        #ctx_mean_combo = tensor.dot(ctx_mean_combo, wn(pp('decoder', 'W_projcomb_att'))) + \
-        #                 tparams[pp('decoder', 'b_projcomb')]
-
-        #if options['layer_normalisation']:
-        #    ctx_mean_combo = layer_norm(ctx_mean_combo, tparams[pp('decoder', 'W_projcomb_att_lnb')],
-        #                      tparams[pp('decoder', 'W_projcomb_att_lns')])
-
-        #ctx_mean_combo.tag.test_value = numpy.ones(shape=(10, 2048)).astype(floatX)
-        # print('ctx mean = ', ctx_mean_combo.tag.test_value.shape)
 
     else:
         assert len(ctx_means) == 0, 'you must specify a multi-source type compatible with build_multisource_model()'
@@ -1080,7 +1044,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
         if aux_x is not None:
-            #print(x.shape, aux_x.shape)
             ret = f_init[i](x, aux_x)
         else:
             ret = f_init[i](x)
@@ -1094,9 +1057,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             ctx1[i] = ret[2]
     next_w = -1 * numpy.ones((live_k,)).astype('int64')  # bos indicator
 
-    #if aux_x is not None:
-    #    print(ctx0[0].shape, ctx1[0].shape)
-
     # x is a sequence of word ids followed by 0, eos id
     for ii in xrange(maxlen):
         for i in xrange(num_models):
@@ -1108,24 +1068,15 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             # for theano function, go from (batch_size, layers, dim) to (layers, batch_size, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
 
-            #if aux_x is not None:
-            #    print(ctx0[i].shape, ctx1[i].shape)
-            #    print(ctx.shape, aux_ctx.shape)
-
             # multi-source
             if aux_x is not None:
                 inps = [next_w, ctx, aux_ctx, next_state[i]]
             else:
                 inps = [next_w, ctx, next_state[i]]
 
-            #for thing in inps:
-            #    print(thing.shape)
-
             ret = f_next[i](*inps)
 
             # TODO: do multi-souce from here!
-
-            # # print(ret)
             # dimension of dec_alpha (k-beam-size, number-of-input-hidden-units)
             next_p[i], next_w_tmp, next_state[i] = ret[0], ret[1], ret[2]
             if return_alignment:
@@ -1303,8 +1254,6 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
     for xs, y in iterator:
         x = xs[0]
 
-        # print("here")
-
         # ensure consistency in number of factors
         if len(x[0][0]) != options['factors']:
             logging.error(
@@ -1366,8 +1315,7 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
 
         # in optional save weights mode.
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
-        #print("multi pred probs")
-        #print(inps)
+
         if alignweights:
             pprobs, attentions = f_log_probs(*inps)
             for i, attention in enumerate(attentions):
@@ -1710,7 +1658,6 @@ def train(dim_word=512,  # word vector dimensionality
     if multisource_type is not None:
         trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
         inps = [z for i in range(num_encoders) for z in (xs[i], x_masks[i])] + [y, y_mask]
-        # print(inps)
     else:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
         inps = [x, x_mask, y, y_mask]
@@ -2066,7 +2013,7 @@ def train(dim_word=512,  # word vector dimensionality
                                                                                         extra_xs=extra_x_current)
 
                     # TODO: only accepting 2 inputs at present
-                    print 'Source ', jj, ': ',
+                    print '\nSource ', jj, ': ',
                     for pos in range(xs[0].shape[1]):
 
                         if xs[0][0, pos, jj] == 0:

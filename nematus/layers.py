@@ -33,7 +33,7 @@ def dropout_constr(options, use_noise, trng, sampling):
     """This constructor takes care of the fact that we want different
     behaviour in training and sampling, and keeps backward compatibility:
     on older versions, activations need to be rescaled at test time;
-    on newer vereions, they are rescaled at training time.
+    on newer versions, they are rescaled at training time.
     """
 
     # if dropout is off, or we don't need it because we're sampling, multiply by 1
@@ -394,7 +394,6 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     if dim is None:
         dim = options['dim']
 
-
     # ensure that there are as many ctx dimensions as encoders
     for i in range(num_encoders):
         if len(dimctx) <= i or dimctx[i] is None:
@@ -457,7 +456,10 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
         # context to LSTM
         if i == 0:
-            Wc = norm_weight(dimctx[0], dim * 2)
+            if options['multisource_type'] == 'att-concat':
+                Wc = norm_weight(dimctx[0] * 2, dim * 2)
+            else:
+                Wc = norm_weight(dimctx[0], dim * 2)
             params[pp(prefix, 'Wc' + suffix)] = Wc
             Wcx = norm_weight(dimctx[0], dim)
             params[pp(prefix, 'Wcx' + suffix)] = Wcx
@@ -523,13 +525,13 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             params[pp(prefix, 'U_att_wns' + suff)] = scale_mul * numpy.ones((1 * 1)).astype(floatX)
 
     # parameters still used for decoder initialisation in methods other than att-concat
-    if options['multisource_type'] == 'att-concat':
+    #if options['multisource_type'] == 'att-concat':
         # linear projection
-        params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx[0] + dimctx[1], dimctx[0])
-        params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx[0],)).astype(floatX)
-        if options['layer_normalisation']:
-            params[pp(prefix, 'W_projcomb_att_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
-            params[pp(prefix, 'W_projcomb_att_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
+        #params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx[0] + dimctx[1], dimctx[0])
+        #params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx[0],)).astype(floatX)
+        #if options['layer_normalisation']:
+        #    params[pp(prefix, 'W_projcomb_att_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
+        #    params[pp(prefix, 'W_projcomb_att_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
 
     # TODO: check dimensions
     if options["multisource_type"] == "att-gate":
@@ -541,6 +543,11 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
         if options['layer_normalisation']:
             params[pp(prefix, 'W_att-gate_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
             params[pp(prefix, 'W_att-gate_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
+
+    elif options['multisource_type'] == 'att-hier':
+        params[pp(prefix, 'U_att-hier' + suff)] = 0.01 * numpy.random.randn(nin, dimctx[0], num_encoders)
+
+        params[pp(prefix, 'c_tt-hier' + suff)] = numpy.zeros((1,)).astype(floatX)
 
     return params
 
@@ -825,38 +832,14 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     state_below_ = tensor.dot(state_below * below_dropout[1], wn(pp(prefix, 'W'))) + \
                    tparams[pp(prefix, 'b')]
 
-    # print("state below", state_below.tag.test_value.shape)
-    # used for context gate (bias to be added later)
-    #if options['multisource_type'] == "att-gate":
-    #    state_belowy = tensor.dot(state_below * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ym1')))
-    #else:
-    #    state_belowy = None
-
-        # print("state belowy = ", state_belowy.tag.test_value.shape)
-
     # ----------- beginning of _step_slice -----------
     # step function (to be used by scan)
     # TODO: cannot pass a list here, so only 2 inputs are possible for now
     def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctxs_, ccs_, rec_dropout, ctx_dropouts):
 
-        # for att-gate - craftily hidden in third dimension of x_
-        #if options['multisource_type'] == 'att-gate':
-        #    xxx_ = concatenate([_slice(x_, 2, dim), _slice(x_, 3, dim)], axis=1)
-        #    x_ = concatenate([_slice(x_, 0, dim), _slice(x_, 1, dim)], axis=1)
-
-          # print('xxx', xxx_.tag.test_value.shape)
-          # print('x', x_.tag.test_value.shape)
-
-
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
             xx_ = layer_norm(xx_, tparams[pp(prefix, 'Wx_lnb')], tparams[pp(prefix, 'Wx_lns')])
-
-        # print('in step slice')
-        # print("x_", x_.tag.test_value.shape)
-        # print("xx_", xx_.tag.test_value.shape)
-
-        # print("h_", h_.tag.test_value.shape)
 
         # ------------------------ GRU 1 ------------------------
         # compute of r'_j and z'_j (reset and update activations)
@@ -866,14 +849,9 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         preact1 += x_
         preact1 = tensor.nnet.sigmoid(preact1)
 
-        # print("preact1", preact1.tag.test_value.shape)
-
         # reset and update gates
         r1 = _slice(preact1, 0, dim)
         u1 = _slice(preact1, 1, dim)
-
-        # print("r1", r1.tag.test_value.shape)
-        # print("u1", u1.tag.test_value.shape)
 
         # proposed intermediate representation ^s'_j
         # gate r'_j applied to (U' * s_{j-1})
@@ -884,17 +862,9 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         preactx1 += xx_
         h1 = tensor.tanh(preactx1)
 
-        # print("h1", h1.tag.test_value.shape)
-        # print("preactx1", preactx1.tag.test_value.shape)
-
         # intermediate representation s'_j (here = h1) (using the update gate)
         h1 = u1 * h_ + (1. - u1) * h1
         h1 = m_[:, None] * h1 + (1. - m_)[:, None] * h_
-
-
-        #print("m_ = ", m_.tag.test_value.shape)
-        #print(m_[:, None].tag.test_value.shape)
-
         pstates_, pctxs__, alphas, ctxs_ = [], [], [], []
 
         # -------------- attention mechanism(s) --------------
@@ -915,7 +885,9 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             # multiply by weight vector
             alphas.append(tensor.dot(pctxs__[i] * ctx_dropouts[i][1], wn(pp(prefix, 'U_att' + suff))) +
                           tparams[pp(prefix, 'c_tt' + suff)])
+
             alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
+
             # normalise
             alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
             if all_context_masks[i]:
@@ -923,15 +895,14 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
             ctxs_.append((ccs_[i] * alphas[i][:, :, None]).sum(0))  # current context
 
-            # print("context before combo "+str(i)+": ", ctxs_[i].tag.test_value.shape)
-
         # -------------- combine the resulting contexts --------------
         # concatenate the multiple context vectors and project to original dimensions
         if options['multisource_type'] == "att-concat":
             # put auxiliary context first
+
             ctx_ = concatenate([ctxs_[1], ctxs_[0]], axis=1)
             # linear projection to return to original context dimensions
-            ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
+            #ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
                 ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
                                   tparams[pp(prefix, 'W_projcomb_att_lns')])
@@ -958,12 +929,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             g_ = tensor.exp(g_ - g_.max(0, keepdims=True)) # TODO: why max?
             g_ = g_ / g_.sum(0, keepdims=True)
 
-            #print("g_ = ", g_.tag.test_value.shape)
-
             # TODO: check dimensions
             ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
-
-            ## print(ctx_.tag.test_value)
 
         elif options['multisource_type'] == "att-hier":
             # 3rd attention mechanism over inputs
@@ -973,12 +940,15 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             # ctxs already in common dimension space
 
-            print("ctx = ", ctxs_[0].tag.test_value.shape)
-            print("extra ctx = ", ctxs_[1].tag.test_value.shape)
-
+            # stack the contexts ready for hierarhical attention
+            stacked_ctx = tensor.stack(ctxs_)
+            # batch size 10, dimension 48, 2 contexts
+            stacked_ctx.tag.test_value = numpy.ones(shape=(2, 10, 48)).astype(floatX)
 
             # apply dropout?? -> TODO
-            hier_alpha = tensor.dot(ctxs_, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
+
+            # attention mechanisms
+            hier_alpha = tensor.tensordot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
 
             hier_alpha = hier_alpha.reshape([hier_alpha.shape[0], hier_alpha.shape[1]])
             hier_alpha = 1
@@ -990,6 +960,18 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             # apply to two contexts
             ctx_ = (ctxs_ * hier_alpha[:, :, None]).sum(0) # current context
             # same as above but calculate e_ij using context vectors rather than annotation vectors
+
+
+            # copied from above for reference
+            alphas.append(tensor.dot(pctxs__[i] * ctx_dropouts[i][1], wn(pp(prefix, 'U_att' + suff))) +
+                          tparams[pp(prefix, 'c_tt' + suff)])
+            alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
+            # normalise
+            alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
+            if all_context_masks[i]:
+                alphas[i] = alphas[i] * all_context_masks[i]
+            alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
+            ctxs_.append((ccs_[i] * alphas[i][:, :, None]).sum(0))  # current context
 
         else:
             ctx_ = ctx_
@@ -1041,11 +1023,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             h2 = u2 * h2_prev + (1. - u2) * h2
             h2 = m_[:, None] * h2 + (1. - m_)[:, None] * h2_prev
             h2_prev = h2
-
-        # print('h2 = ', h2.tag.test_value.shape)
-        # print('ctx_ = ', ctx_.tag.test_value.shape)
-        # print('alpha1 = ', alphas[0].tag.test_value.shape)
-        # print('alpha2 = ', alphas[1].tag.test_value.shape)
 
         return h2, ctx_, alphas[0].T, alphas[1].T  # pstate_, preact, preactx, r, u
 
