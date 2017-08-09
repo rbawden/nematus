@@ -458,10 +458,11 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
         if i == 0:
             if options['multisource_type'] == 'att-concat':
                 Wc = norm_weight(dimctx[0] * 2, dim * 2)
+                Wcx = norm_weight(dimctx[0] * 2, dim)
             else:
                 Wc = norm_weight(dimctx[0], dim * 2)
+                Wcx = norm_weight(dimctx[0], dim)
             params[pp(prefix, 'Wc' + suffix)] = Wc
-            Wcx = norm_weight(dimctx[0], dim)
             params[pp(prefix, 'Wcx' + suffix)] = Wcx
             if options['layer_normalisation']:
                 params[pp(prefix, 'Wc%s_lnb') % suffix] = scale_add * numpy.ones((2 * dim)).astype(floatX)
@@ -926,7 +927,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                 g_ = layer_norm(g_, tparams[pp(prefix, 'W_att-gate_lnb')],
                                 tparams[pp(prefix, 'W_att-gate_lns')])
             # softmax
-            g_ = tensor.exp(g_ - g_.max(0, keepdims=True)) # TODO: why max?
+            g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
             g_ = g_ / g_.sum(0, keepdims=True)
 
             # TODO: check dimensions
