@@ -1503,25 +1503,6 @@ def train(dim_word=512,  # word vector dimensionality
         worddicts.append(worddicts1)
         worddicts_r.append(worddicts_r1)
 
-    # copy main source dicts to extra sources if no specific dicts were provided for them - by default
-    #for i in range(len(worddicts)):
-    #    if len(worddicts[i]) == 0:
-    #        if i == 0:
-    #            logging.error('The main src dict is empty.')
-    #        else:
-    #            logging.warn('Reusing main src dicts for extra input #%s' % str(i+1))
-    #            worddicts[i] = worddicts[0]
-    #            worddicts_r[i] = worddicts_r[0]
-
-    # vocabulary size of main source input
-    #n_words_src = len(worddicts[0][0])
-
-    # vocab sizes for extra inputs
-    #extra_n_words_src += [ * (len(extra_sources) - len(extra_n_words_src))
-
-    # vocabulary size for each input source (equal to dictionary size)
-    #all_n_words_src = [n_words_src] + extra_n_words_src
-
     # vocabulary sizes for each of the input sources (words)
     all_n_words_src = [len(wd[0]) for w, wd in enumerate(worddicts)]
     model_options['n_words_src'] = all_n_words_src

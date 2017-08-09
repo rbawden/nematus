@@ -903,9 +903,9 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             ctx_ = concatenate([ctxs_[1], ctxs_[0]], axis=1)
             # linear projection to return to original context dimensions
             #ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
-            if options['layer_normalisation']:
-                ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
-                                  tparams[pp(prefix, 'W_projcomb_att_lns')])
+            #if options['layer_normalisation']:
+            #    ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
+            #                      tparams[pp(prefix, 'W_projcomb_att_lns')])
 
         # apply a context gate between the two different contexts
         elif options['multisource_type'] == "att-gate":

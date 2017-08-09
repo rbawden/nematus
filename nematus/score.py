@@ -10,7 +10,7 @@ import logging
 
 import numpy
 
-from data_iterator import TextIterator_orig
+from data_iterator import TextIterator
 from util import load_config
 from alignment_util import combine_source_target_text_1to1
 from compat import fill_options
@@ -79,24 +79,18 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
     print("n words src = "+str(options[0]['n_words_src']))
 
-    pairs = TextIterator_orig(source_file.name, target_file.name,
+    pairs = TextIterator(source_file.name, target_file.name,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
                          n_words_source=options[0]['n_words_src'], n_words_target=options[0]['n_words'],
                          batch_size=b,
                          maxlen=float('inf'),
                          sort_by_length=False)  # TODO: sorting by length could be more efficient, but we'd want to resort after
 
-    # TODO: whilst not multi
-    #pairs = (pairs[0][0], pairs[-1])
-
     scores, alignments = _score(pairs, alignweights)
-
-    #print(len(alignments))
-    #print(alignments[0])
 
     source_file.seek(0)
     target_file.seek(0)
-    #source_lines = source_file.readlines()
+    # source_lines = source_file.readlines()
     target_lines = target_file.readlines()
 
     for i, line in enumerate(target_lines):
@@ -105,14 +99,14 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
             saveto.write('{0} '.format(line.strip()))
         saveto.write('{0}\n'.format(score_str))
 
-    ### optional save weights mode.
+    # optional save weights mode.
     if alignweights:
-        ### writing out the alignments.
+        # writing out the alignments.
         temp_name = saveto.name + ".json"
         with tempfile.NamedTemporaryFile(prefix=temp_name) as align_OUT:
             for line in alignments:
                 align_OUT.write(line + "\n")
-            ### combining the actual source and target words.
+            # combining the actual source and target words.
             combine_source_target_text_1to1(source_file, target_file, saveto.name, align_OUT)
 
 
@@ -121,8 +115,6 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 def multi_rescore_model(source_files, target_file, savetos, models, options, b,
                         normalization_alpha, verbose, alignweights):
     assert len(source_files) == len(savetos)  # as many inputs as different alignments
-
-    print("multi rescore model")
 
     trng = RandomStreams(1234)
 
