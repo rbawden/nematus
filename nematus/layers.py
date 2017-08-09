@@ -456,9 +456,9 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
         # context to LSTM
         if i == 0:
-            if options['multisource_type'] == 'att-concat':
-                Wc = norm_weight(dimctx[0] * 2, dim * 2)
-                Wcx = norm_weight(dimctx[0] * 2, dim)
+            if options['multisource_type'] == 'att-concat': # TODO: possibly change later
+                Wc = norm_weight(dimctx[0] * 1, dim * 2)
+                Wcx = norm_weight(dimctx[0] * 1, dim)
             else:
                 Wc = norm_weight(dimctx[0], dim * 2)
                 Wcx = norm_weight(dimctx[0], dim)
@@ -526,13 +526,13 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             params[pp(prefix, 'U_att_wns' + suff)] = scale_mul * numpy.ones((1 * 1)).astype(floatX)
 
     # parameters still used for decoder initialisation in methods other than att-concat
-    #if options['multisource_type'] == 'att-concat':
+    if options['multisource_type'] == 'att-concat':
         # linear projection
-        #params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx[0] + dimctx[1], dimctx[0])
-        #params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx[0],)).astype(floatX)
-        #if options['layer_normalisation']:
-        #    params[pp(prefix, 'W_projcomb_att_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
-        #    params[pp(prefix, 'W_projcomb_att_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
+        params[pp(prefix, 'W_projcomb_att')] = norm_weight(dimctx[0] + dimctx[1], dimctx[0])
+        params[pp(prefix, 'b_projcomb')] = numpy.zeros((dimctx[0],)).astype(floatX)
+        if options['layer_normalisation']:
+            params[pp(prefix, 'W_projcomb_att_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
+            params[pp(prefix, 'W_projcomb_att_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
 
     # TODO: check dimensions
     if options["multisource_type"] == "att-gate":
@@ -903,10 +903,10 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             ctx_ = concatenate([ctxs_[1], ctxs_[0]], axis=1)
             # linear projection to return to original context dimensions
-            #ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
-            #if options['layer_normalisation']:
-            #    ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
-            #                      tparams[pp(prefix, 'W_projcomb_att_lns')])
+            ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
+            if options['layer_normalisation']:
+                ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
+                                  tparams[pp(prefix, 'W_projcomb_att_lns')])
 
         # apply a context gate between the two different contexts
         elif options['multisource_type'] == "att-gate":
