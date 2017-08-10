@@ -911,8 +911,12 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         if options['multisource_type'] == "att-concat":
             # put auxiliary context first
 
-            # concatenat the two contexts
-            ctx_ = concatenate([ctxs_[1] * ctx_dropouts[1][4], ctxs_[0] * ctx_dropouts[0][4]], axis=1)
+            #print(ctxs_[0].tag.test_value.shape)
+            #print(ctxs_[1].tag.test_value.shape)
+
+            # concatenate the two contexts
+            # TODO: context dropout?
+            ctx_ = concatenate([ctxs_[1], ctxs_[0]], axis=1)
             # linear projection to return to original context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:

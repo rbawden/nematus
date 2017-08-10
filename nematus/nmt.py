@@ -640,6 +640,8 @@ def build_multisource_model(tparams, options):
 
         xs[i], ctxs[i] = build_encoder(tparams, options, dropout, x_masks[i], sampling=False, suffix=suff)
 
+        print("ctx shape = ", ctxs[i].shape)
+
         n_samples[i] = xs[i].shape[2]
         # mean of the context (across time) will be used to initialize decoder rnn
         ctx_means[i] = (ctxs[i] * x_masks[i][:, :, None]).sum(0) / x_masks[i].sum(0)[:, None]
