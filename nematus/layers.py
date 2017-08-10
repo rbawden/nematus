@@ -459,6 +459,9 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             if options['multisource_type'] == 'att-concat': # TODO: possibly change later
                 Wc = norm_weight(dimctx[0] * 1, dim * 2)
                 Wcx = norm_weight(dimctx[0] * 1, dim)
+                print("first dim =", dimctx[0])
+                print('out dim Wc = ', dim*2)
+
             else:
                 Wc = norm_weight(dimctx[0], dim * 2)
                 Wcx = norm_weight(dimctx[0], dim)
@@ -815,8 +818,11 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         extra_pctx_ = layer_norm(extra_pctx_, tparams[pp(prefix, 'Wc_att_lnb1')],
                            tparams[pp(prefix, 'Wc_att_lns1')])
 
+    # concatenated ctx dropout
+    concat_ctx_dropout = dropout((n_samples, 4 * options['dim']), dropout_probability_ctx, num=4)
+
     # concatenate context and extra-contexts to facilitate loops
-    all_ctx_dropouts = [ctx_dropout, extra_ctx_dropout]
+    all_ctx_dropouts = [ctx_dropout, extra_ctx_dropout, concat_ctx_dropout]
     all_pctxs_ = [pctx_, extra_pctx_]
     all_contexts = [context, extra_context]
     all_context_masks = [context_mask, extra_context_mask]
@@ -916,8 +922,10 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             # (iv) aux_ctx_ (auxiliary context vector)
             #ym1_ = xxx_
             #sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
-            main_pctx_ = tensor.dot(ctxs_[0] * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx1')))
-            aux_pctx_ = tensor.dot(ctxs_[1] * rec_dropout[2], wn(pp(prefix, 'W_att-gate-ctx2')))
+
+            # removed recdropout[2]
+            main_pctx_ = tensor.dot(ctxs_[0], wn(pp(prefix, 'W_att-gate-ctx1')))
+            aux_pctx_ = tensor.dot(ctxs_[1], wn(pp(prefix, 'W_att-gate-ctx2')))
 
             #g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
             g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
@@ -989,8 +997,16 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                 preact2 = layer_norm(preact2, tparams[pp(prefix, 'U_nl%s_lnb' % suffix)],
                                      tparams[pp(prefix, 'U_nl%s_lns' % suffix)])
             if i == 0:
-                ctx1_ = tensor.dot(ctx_ * ctx_dropouts[0][2],
-                                   wn(pp(prefix, 'Wc' + suffix)))  # dropout mask is shared over mini-steps
+                if options['multisource_type'] == 'att-concat':
+                    #print(len(ctx_dropouts[0]))
+                    #ctx_dropout = concatenate([ctx_dropouts[0][2], ctx_dropouts[0][2]], axis=1)
+                    #print(ctx_dropouts[0][2].shape)
+                    # TODO: put dropout back somewhere
+                    ctx1_ = tensor.dot(ctx_ * ctx_dropouts[0][2],
+                                       wn(pp(prefix, 'Wc' + suffix)))  # dropout mask is shared over mini-steps
+                else:
+                    ctx1_ = tensor.dot(ctx_ * ctx_dropouts[0][2],
+                                       wn(pp(prefix, 'Wc' + suffix)))  # dropout mask is shared over mini-steps
                 if options['layer_normalisation']:
                     ctx1_ = layer_norm(ctx1_, tparams[pp(prefix, 'Wc%s_lnb' % suffix)],
                                        tparams[pp(prefix, 'Wc%s_lns' % suffix)])
@@ -1011,8 +1027,15 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             # they use the context vector from the attention mechanism
             if i == 0:
-                ctx2_ = tensor.dot(ctx_ * ctx_dropouts[0][3],
-                                   wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
+                # TODO: put dropout back somewhere
+                if options['multisource_type'] == 'att-concat':
+                    print(ctx_dropouts[0][2].shape)
+                    ctx2_ = tensor.dot(ctx_ * ctx_dropouts[0][3],
+                                       wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
+
+                else:
+                    ctx2_ = tensor.dot(ctx_ * ctx_dropouts[0][3],
+                                       wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
                 if options['layer_normalisation']:
                     ctx2_ = layer_norm(ctx2_, tparams[pp(prefix, 'Wcx%s_lnb' % suffix)],
                                        tparams[pp(prefix, 'Wcx%s_lns' % suffix)])
