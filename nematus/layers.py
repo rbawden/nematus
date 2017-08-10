@@ -549,9 +549,9 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             params[pp(prefix, 'W_att-gate_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
 
     elif options['multisource_type'] == 'att-hier':
-        params[pp(prefix, 'U_att-hier' + suff)] = 0.01 * numpy.random.randn(nin, dimctx[0], num_encoders)
+        params[pp(prefix, 'U_att-hier')] = norm_weight(dimctx[i], 1)
 
-        params[pp(prefix, 'c_tt-hier' + suff)] = numpy.zeros((1,)).astype(floatX)
+        params[pp(prefix, 'c_tt-hier')] = numpy.zeros((1,)).astype(floatX)
 
     return params
 
@@ -895,6 +895,10 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
+            #print(pctxs__[i].tag.test_value.shape)
+            #print(wn(pp(prefix, 'U_att' + suff)).shape)
+            #print(alphas[i].shape)
+
             # normalise
             alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
             if all_context_masks[i]:
@@ -930,7 +934,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             #g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
             g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
 
-            # TODO: layer normalisation here?
             if options['layer_normalisation']:
                 g_ = layer_norm(g_, tparams[pp(prefix, 'W_att-gate_lnb')],
                                 tparams[pp(prefix, 'W_att-gate_lns')])
@@ -938,49 +941,32 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
             g_ = g_ / g_.sum(0, keepdims=True)
 
-            # TODO: check dimensions
+            # apply to conetxts
             ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
 
         elif options['multisource_type'] == "att-hier":
-            # 3rd attention mechanism over inputs
-            # TODO
 
-            # attention mechanism over 2 contexts
-
-            # ctxs already in common dimension space
+            logging.info("Doing multi-source with hierarchical attention")
 
             # stack the contexts ready for hierarhical attention
             stacked_ctx = tensor.stack(ctxs_)
             # batch size 10, dimension 48, 2 contexts
             stacked_ctx.tag.test_value = numpy.ones(shape=(2, 10, 48)).astype(floatX)
+            #stacked_dropout =
 
             # apply dropout?? -> TODO
 
-            # attention mechanisms
-            hier_alpha = tensor.tensordot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
-
+            # TODO: add ctx dropout
+            hier_alpha = tensor.dot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
+            hier_alpha.tag.test_value = numpy.ones(shape=(2, 10, 1)).astype(floatX)
             hier_alpha = hier_alpha.reshape([hier_alpha.shape[0], hier_alpha.shape[1]])
-            hier_alpha = 1
-            # normalise
             hier_alpha= tensor.exp(hier_alpha - hier_alpha.max(0, keepdims=True))
-
             # normalise
             hier_alpha = hier_alpha / hier_alpha.sum(0, keepdims=True)
-            # apply to two contexts
+
+            # TODO: apply context mask here?
+            # apply alpha
             ctx_ = (ctxs_ * hier_alpha[:, :, None]).sum(0) # current context
-            # same as above but calculate e_ij using context vectors rather than annotation vectors
-
-
-            # copied from above for reference
-            alphas.append(tensor.dot(pctxs__[i] * ctx_dropouts[i][1], wn(pp(prefix, 'U_att' + suff))) +
-                          tparams[pp(prefix, 'c_tt' + suff)])
-            alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
-            # normalise
-            alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
-            if all_context_masks[i]:
-                alphas[i] = alphas[i] * all_context_masks[i]
-            alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
-            ctxs_.append((ccs_[i] * alphas[i][:, :, None]).sum(0))  # current context
 
         else:
             ctx_ = ctx_
