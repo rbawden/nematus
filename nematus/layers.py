@@ -911,12 +911,9 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         if options['multisource_type'] == "att-concat":
             # put auxiliary context first
 
-            #print(ctxs_[0].tag.test_value.shape)
-            #print(ctxs_[1].tag.test_value.shape)
-
             # concatenate the two contexts
             # TODO: context dropout?
-            ctx_ = concatenate([ctxs_[1], ctxs_[0]], axis=1)
+            ctx_ = concatenate([ctxs_[1] * ctx_dropouts[1][4], ctxs_[0] * ctx_dropouts[0][4]], axis=1)
             # linear projection to return to original context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
@@ -954,7 +951,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             logging.info("Doing multi-source with hierarchical attention")
 
-            # stack the contexts ready for hierarhical attention
+            # stack the contexts ready for hierarchical attention
             stacked_ctx = tensor.stack(ctxs_)
             # batch size 10, dimension 48, 2 contexts
             stacked_ctx.tag.test_value = numpy.ones(shape=(2, 10, 48)).astype(floatX)

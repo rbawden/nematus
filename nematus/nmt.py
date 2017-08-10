@@ -353,6 +353,7 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
 
     # context will be the concatenation of forward and backward rnns
     ctx = concatenate([proj[0], projr[0][::-1]], axis=proj[0].ndim - 1)
+    ctx.tag.test_value = (numpy.random.rand(5, 10, 48) * 100).astype('int64')
 
     # forward encoder layers after bidirectional layers are concatenated
     for level in range(options['enc_depth_bidirectional'] + 1, options['enc_depth'] + 1):
@@ -640,7 +641,7 @@ def build_multisource_model(tparams, options):
 
         xs[i], ctxs[i] = build_encoder(tparams, options, dropout, x_masks[i], sampling=False, suffix=suff)
 
-        print("ctx shape = ", ctxs[i].shape)
+        #print("ctx shape = ", ctxs[i].shape)
 
         n_samples[i] = xs[i].shape[2]
         # mean of the context (across time) will be used to initialize decoder rnn
@@ -665,7 +666,7 @@ def build_multisource_model(tparams, options):
 
     else:
         assert len(ctx_means) == 0, 'you must specify a multi-source type compatible with build_multisource_model()'
-        ctx_mean_combo = ctx_means[i]
+        ctx_mean_combo = ctx_means[0]
 
     # initial decoder state
     init_state = get_layer_constr('ff')(tparams, ctx_mean_combo, options, dropout,
