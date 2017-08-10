@@ -911,12 +911,15 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         if options['multisource_type'] == "att-concat":
             # put auxiliary context first
 
-            ctx_ = concatenate([ctxs_[1], ctxs_[0]], axis=1)
+            # concatenat the two contexts
+            ctx_ = concatenate([ctxs_[1] * ctx_dropouts[1], ctxs_[0] * ctx_dropouts[0]], axis=1)
             # linear projection to return to original context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
                 ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
                                   tparams[pp(prefix, 'W_projcomb_att_lns')])
+            # non-linearity as in Zoph and Knight
+            ctx_ = tanh(ctx_)
 
         # apply a context gate between the two different contexts
         elif options['multisource_type'] == "att-gate":
@@ -927,9 +930,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             #ym1_ = xxx_
             #sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
 
-            # removed recdropout[2]
-            main_pctx_ = tensor.dot(ctxs_[0], wn(pp(prefix, 'W_att-gate-ctx1')))
-            aux_pctx_ = tensor.dot(ctxs_[1], wn(pp(prefix, 'W_att-gate-ctx2')))
+            main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropouts[0], wn(pp(prefix, 'W_att-gate-ctx1')))
+            aux_pctx_ = tensor.dot(ctxs_[1] * ctx_dropouts[1], wn(pp(prefix, 'W_att-gate-ctx2')))
 
             #g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
             g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
@@ -941,8 +943,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
             g_ = g_ / g_.sum(0, keepdims=True)
 
-            # apply to conetxts
-            ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
+            # apply to contexts TODO just testing
+            ctx_ = g_* 0 * ctxs_[1] + (1. - g_) * ctxs_[0]
 
         elif options['multisource_type'] == "att-hier":
 
@@ -954,17 +956,14 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             stacked_ctx.tag.test_value = numpy.ones(shape=(2, 10, 48)).astype(floatX)
             #stacked_dropout =
 
-            # apply dropout?? -> TODO
-
             # TODO: add ctx dropout
             hier_alpha = tensor.dot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
             hier_alpha.tag.test_value = numpy.ones(shape=(2, 10, 1)).astype(floatX)
             hier_alpha = hier_alpha.reshape([hier_alpha.shape[0], hier_alpha.shape[1]])
             hier_alpha= tensor.exp(hier_alpha - hier_alpha.max(0, keepdims=True))
+
             # normalise
             hier_alpha = hier_alpha / hier_alpha.sum(0, keepdims=True)
-
-            # TODO: apply context mask here?
             # apply alpha
             ctx_ = (ctxs_ * hier_alpha[:, :, None]).sum(0) # current context
 
