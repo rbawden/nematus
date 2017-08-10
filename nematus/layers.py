@@ -819,10 +819,10 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                            tparams[pp(prefix, 'Wc_att_lns1')])
 
     # concatenated ctx dropout
-    concat_ctx_dropout = dropout((n_samples, 4 * options['dim']), dropout_probability_ctx, num=4)
+    #concat_ctx_dropout = dropout((n_samples, 4 * options['dim']), dropout_probability_ctx, num=4)
 
     # concatenate context and extra-contexts to facilitate loops
-    all_ctx_dropouts = [ctx_dropout, extra_ctx_dropout, concat_ctx_dropout]
+    all_ctx_dropouts = [ctx_dropout, extra_ctx_dropout]
     all_pctxs_ = [pctx_, extra_pctx_]
     all_contexts = [context, extra_context]
     all_context_masks = [context_mask, extra_context_mask]
