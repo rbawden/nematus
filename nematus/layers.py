@@ -803,14 +803,14 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     assert extra_context.ndim == 3, 'Context 1 must be 3-d: #annotation x #sample x dim'
 
     # first context
-    ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=4)
+    ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=5)
     if pctx_ is None:
         pctx_ = tensor.dot(context * ctx_dropout[0], wn(pp(prefix, 'Wc_att0'))) + tparams[pp(prefix, 'b_att0')]
     if options['layer_normalisation']:
         pctx_ = layer_norm(pctx_, tparams[pp(prefix, 'Wc_att_lnb0')],
                                    tparams[pp(prefix, 'Wc_att_lns0')])
     # second context
-    extra_ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=4)
+    extra_ctx_dropout = dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=5)
     if extra_pctx_ is None:
         extra_pctx_ = tensor.dot(extra_context * extra_ctx_dropout[0], wn(pp(prefix, 'Wc_att1'))) + \
                       tparams[pp(prefix, 'b_att1')]
@@ -912,7 +912,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             # put auxiliary context first
 
             # concatenat the two contexts
-            ctx_ = concatenate([ctxs_[1] * ctx_dropouts[1], ctxs_[0] * ctx_dropouts[0]], axis=1)
+            ctx_ = concatenate([ctxs_[1] * ctx_dropouts[1][4], ctxs_[0] * ctx_dropouts[0][4]], axis=1)
             # linear projection to return to original context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
@@ -930,8 +930,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             #ym1_ = xxx_
             #sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
 
-            main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropouts[0], wn(pp(prefix, 'W_att-gate-ctx1')))
-            aux_pctx_ = tensor.dot(ctxs_[1] * ctx_dropouts[1], wn(pp(prefix, 'W_att-gate-ctx2')))
+            main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropouts[0][4], wn(pp(prefix, 'W_att-gate-ctx1')))
+            aux_pctx_ = tensor.dot(ctxs_[1] * ctx_dropouts[1][4], wn(pp(prefix, 'W_att-gate-ctx2')))
 
             #g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
             g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
