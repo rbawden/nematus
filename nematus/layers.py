@@ -944,7 +944,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             g_ = g_ / g_.sum(0, keepdims=True)
 
             # apply to contexts TODO just testing
-            ctx_ = g_* 0 * ctxs_[1] + (1. - g_) * ctxs_[0]
+            ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
 
         elif options['multisource_type'] == "att-hier":
 
