@@ -783,7 +783,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
     dim = tparams[pp(prefix, 'Wcx')].shape[1]
 
-    rec_dropout = dropout((n_samples, dim), dropout_probability_rec, num=1 + 2 * recurrence_transition_depth)
+    rec_dropout = dropout((n_samples, dim), dropout_probability_rec, num=2 + 2 * recurrence_transition_depth)
 
     # utility function to look up parameters and apply weight normalization if enabled
     def wn(param_name):
@@ -842,7 +842,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     # ----------- beginning of _step_slice -----------
     # step function (to be used by scan)
     # TODO: cannot pass a list here, so only 2 inputs are possible for now
-    def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctxs_, ccs_, rec_dropout, ctx_dropouts):
+    def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctx_, extra_pctx_, cc_, extra_cc_,rec_dropout,
+                                                                                    ctx_dropout, extra_ctx_dropout):
 
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
@@ -876,35 +877,59 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         # -------------- attention mechanism(s) --------------
         # fixed at 2 for now...
-        for i in range(2):
-            # suffix for parameters
-            suff = str(i)
+        #for i in range(2):
+        # suffix for parameters
+        suff = str(0)
+        i=0
 
-            # calculate e_ij (here pctx__)
-            pstates_.append(tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_comb_att' + suff))))
-            if options['layer_normalisation']:
-                pstates_[i] = layer_norm(pstates_[i], tparams[pp(prefix, 'W_comb_att_lnb' + suff)],
-                                         tparams[pp(prefix, 'W_comb_att_lns' + suff)])
-            pctxs__.append(pctxs_[i] + pstates_[i][None, :, :])
-            # pctx__ += xc_
-            pctxs__[i] = tensor.tanh(pctxs__[i])
+        # FIRST ONE
+        # calculate e_ij (here pctx__)
+        pstates_.append(tensor.dot(h1 * rec_dropout[2+i], wn(pp(prefix, 'W_comb_att' + suff))))
+        if options['layer_normalisation']:
+            pstates_[i] = layer_norm(pstates_[i], tparams[pp(prefix, 'W_comb_att_lnb' + suff)],
+                                     tparams[pp(prefix, 'W_comb_att_lns' + suff)])
+        pctxs__.append(pctx_ + pstates_[i][None, :, :])
+        # pctx__ += xc_
+        pctxs__[i] = tensor.tanh(pctxs__[i])
 
-            # multiply by weight vector
-            alphas.append(tensor.dot(pctxs__[i] * ctx_dropouts[i][1], wn(pp(prefix, 'U_att' + suff))) +
-                          tparams[pp(prefix, 'c_tt' + suff)])
+        # multiply by weight vector
+        alphas.append(tensor.dot(pctxs__[i] * ctx_dropout[1], wn(pp(prefix, 'U_att' + suff))) +
+                      tparams[pp(prefix, 'c_tt' + suff)])
 
-            alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
+        alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
-            #print(pctxs__[i].tag.test_value.shape)
-            #print(wn(pp(prefix, 'U_att' + suff)).shape)
-            #print(alphas[i].shape)
+        # normalise
+        alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
+        if all_context_masks[i]:
+            alphas[i] = alphas[i] * all_context_masks[i]
+        alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
+        ctxs_.append((cc_ * alphas[i][:, :, None]).sum(0))  # current context
 
-            # normalise
-            alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
-            if all_context_masks[i]:
-                alphas[i] = alphas[i] * all_context_masks[i]
-            alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
-            ctxs_.append((ccs_[i] * alphas[i][:, :, None]).sum(0))  # current context
+
+        # AUXILIARY ONE
+        suff = str(1)
+        i=1
+        # calculate e_ij (here pctx__)
+        pstates_.append(tensor.dot(h1 * rec_dropout[2 + i], wn(pp(prefix, 'W_comb_att' + suff))))
+        if options['layer_normalisation']:
+            pstates_[i] = layer_norm(pstates_[i], tparams[pp(prefix, 'W_comb_att_lnb' + suff)],
+                                     tparams[pp(prefix, 'W_comb_att_lns' + suff)])
+        pctxs__.append(extra_pctx_ + pstates_[i][None, :, :])
+        # pctx__ += xc_
+        pctxs__[i] = tensor.tanh(pctxs__[i])
+
+        # multiply by weight vector
+        alphas.append(tensor.dot(pctxs__[i] * extra_ctx_dropout[1], wn(pp(prefix, 'U_att' + suff))) +
+                      tparams[pp(prefix, 'c_tt' + suff)])
+
+        alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
+
+        # normalise
+        alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
+        if all_context_masks[i]:
+            alphas[i] = alphas[i] * all_context_masks[i]
+        alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
+        ctxs_.append((extra_cc_ * alphas[i][:, :, None]).sum(0))  # current context
 
         # -------------- combine the resulting contexts --------------
         # concatenate the multiple context vectors and project to original dimensions
@@ -913,14 +938,14 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             # concatenate the two contexts
             # TODO: context dropout?
-            ctx_ = concatenate([ctxs_[1] * ctx_dropouts[1][4], ctxs_[0] * ctx_dropouts[0][4]], axis=1)
+            ctx_ = concatenate([ctxs_[1] * extra_ctx_dropout[4], ctxs_[0] * ctx_dropout[4]], axis=1)
             # linear projection to return to original context dimensions
             ctx_ = tensor.dot(ctx_, wn(pp(prefix, 'W_projcomb_att'))) + tparams[pp(prefix, 'b_projcomb')]
             if options['layer_normalisation']:
                 ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
                                   tparams[pp(prefix, 'W_projcomb_att_lns')])
             # non-linearity as in Zoph and Knight
-            ctx_ = tanh(ctx_)
+            #ctx_ = tanh(ctx_)
 
         # apply a context gate between the two different contexts
         elif options['multisource_type'] == "att-gate":
@@ -931,8 +956,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             #ym1_ = xxx_
             #sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
 
-            main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropouts[0][4], wn(pp(prefix, 'W_att-gate-ctx1')))
-            aux_pctx_ = tensor.dot(ctxs_[1] * ctx_dropouts[1][4], wn(pp(prefix, 'W_att-gate-ctx2')))
+            main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropout[4], wn(pp(prefix, 'W_att-gate-ctx1')))
+            aux_pctx_ = tensor.dot(ctxs_[1] * extra_ctx_dropout[4], wn(pp(prefix, 'W_att-gate-ctx2')))
 
             #g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
             g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
@@ -977,7 +1002,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             suffix = '' if i == 0 else ('_drt_%s' % i)
 
             # compute of r_j and z_j (reset and update activations)
-            preact2 = tensor.dot(h2_prev * rec_dropout[3 + 2 * i], wn(pp(prefix, 'U_nl' + suffix))) + tparams[
+            preact2 = tensor.dot(h2_prev * rec_dropout[4 + 2 * i], wn(pp(prefix, 'U_nl' + suffix))) + tparams[
                 pp(prefix, 'b_nl' + suffix)]
             if options['layer_normalisation']:
                 preact2 = layer_norm(preact2, tparams[pp(prefix, 'U_nl%s_lnb' % suffix)],
@@ -988,10 +1013,10 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                     #ctx_dropout = concatenate([ctx_dropouts[0][2], ctx_dropouts[0][2]], axis=1)
                     #print(ctx_dropouts[0][2].shape)
                     # TODO: put dropout back somewhere
-                    ctx1_ = tensor.dot(ctx_ * ctx_dropouts[0][2],
+                    ctx1_ = tensor.dot(ctx_ * ctx_dropout[2],
                                        wn(pp(prefix, 'Wc' + suffix)))  # dropout mask is shared over mini-steps
                 else:
-                    ctx1_ = tensor.dot(ctx_ * ctx_dropouts[0][2],
+                    ctx1_ = tensor.dot(ctx_ * ctx_dropout[2],
                                        wn(pp(prefix, 'Wc' + suffix)))  # dropout mask is shared over mini-steps
                 if options['layer_normalisation']:
                     ctx1_ = layer_norm(ctx1_, tparams[pp(prefix, 'Wc%s_lnb' % suffix)],
@@ -1015,12 +1040,12 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             if i == 0:
                 # TODO: put dropout back somewhere
                 if options['multisource_type'] == 'att-concat':
-                    print(ctx_dropouts[0][2].shape)
-                    ctx2_ = tensor.dot(ctx_ * ctx_dropouts[0][3],
+                    print(ctx_dropout[2].shape)
+                    ctx2_ = tensor.dot(ctx_ * ctx_dropout[3],
                                        wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
 
                 else:
-                    ctx2_ = tensor.dot(ctx_ * ctx_dropouts[0][3],
+                    ctx2_ = tensor.dot(ctx_ * ctx_dropout[3],
                                        wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
                 if options['layer_normalisation']:
                     ctx2_ = layer_norm(ctx2_, tparams[pp(prefix, 'Wcx%s_lnb' % suffix)],
@@ -1044,7 +1069,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
     if one_step:
         rval = _step(*(
-            seqs + [init_state, None, None, None, all_pctxs_, all_contexts, rec_dropout, all_ctx_dropouts] +
+            seqs + [init_state, None, None, None, pctx_, extra_pctx_, context, extra_context, rec_dropout, ctx_dropout,
+                                                   extra_ctx_dropout] +
             shared_vars))
     else:
         rval, updates = theano.scan(_step,
@@ -1054,7 +1080,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                                                   tensor.zeros((n_samples, context.shape[0])),
                                                   tensor.zeros((n_samples, extra_context.shape[0]))
                                                   ],
-                                    non_sequences=[all_pctxs_, all_contexts, rec_dropout, all_ctx_dropouts] + shared_vars,
+                                    non_sequences=[pctx_, extra_pctx_, context, extra_context, rec_dropout, ctx_dropout,
+                                                   extra_ctx_dropout] + shared_vars,
                                     name=pp(prefix, '_layers'),
                                     n_steps=nsteps,
                                     truncate_gradient=truncate_gradient,

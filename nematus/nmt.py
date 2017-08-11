@@ -124,7 +124,7 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
     n_samples = len(seqs_xs[0])
 
     # TODO: is there a way of making this different for different inputs? for now take the max of all input sources
-    maxlen_xs = [numpy.max([numpy.max(lengths_x) for lengths_x in lengths_xs]) + 1] * len(lengths_xs)
+    maxlen_xs = [numpy.max(lengths_x) for lengths_x in lengths_xs]
     maxlen_y = numpy.max(lengths_y) + 1
 
     # prepare numpy objects and masks
