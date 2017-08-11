@@ -53,6 +53,7 @@ class ConsoleInterface(object):
         args = self.parse_args()
         return DecoderSettings(args)
 
+
 class ConsoleInterfaceDefault(ConsoleInterface):
     """
     Console interface for default mode

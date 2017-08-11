@@ -55,9 +55,10 @@ class TranslationSettings(object):
         self.get_alignment = False
         self.alignment_type = None
         self.alignment_filename = None
+        self.aux_alignment_filename = None
         self.get_search_graph = False
         self.search_graph_filename = None
-        self.multisource_type = None
+        self.multisource = False
         if parsed_console_arguments:
             self.update_from(parsed_console_arguments)
 
@@ -76,6 +77,8 @@ class TranslationSettings(object):
         if args.output_alignment:
             self.get_alignment = True
             self.alignment_filename = args.output_alignment
+            if args.aux_input is not None:
+                self.aux_alignment_filename = file(args.output_alignment.name + '_aux', 'w')
             if args.json_alignment:
                 self.alignment_type = self.ALIGNMENT_JSON
             else:
@@ -89,9 +92,10 @@ class TranslationSettings(object):
             self.get_search_graph = False
             self.search_graph_filename = None
 
-        #if args.multisource_type:
-        #    self.multisource_type = args.multisource_type
-
+        if args.aux_input is not None:
+            self.multisource = True
+        else:
+            self.multisource = False
 
 
 class ServerSettings(object):

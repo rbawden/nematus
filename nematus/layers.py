@@ -459,8 +459,6 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             if options['multisource_type'] == 'att-concat': # TODO: possibly change later
                 Wc = norm_weight(dimctx[0] * 1, dim * 2)
                 Wcx = norm_weight(dimctx[0] * 1, dim)
-                print("first dim =", dimctx[0])
-                print('out dim Wc = ', dim*2)
 
             else:
                 Wc = norm_weight(dimctx[0], dim * 2)
@@ -900,11 +898,12 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         # normalise
         alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
-        if all_context_masks[i]:
-            alphas[i] = alphas[i] * all_context_masks[i]
+        if context_mask:
+            alphas[i] = alphas[i] * context_mask
         alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
         ctxs_.append((cc_ * alphas[i][:, :, None]).sum(0))  # current context
 
+        #theano.printing.Print('Ctx1')(ctxs_[i])
 
         # AUXILIARY ONE
         suff = str(1)
@@ -926,8 +925,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         # normalise
         alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
-        if all_context_masks[i]:
-            alphas[i] = alphas[i] * all_context_masks[i]
+        if extra_context_mask:
+            alphas[i] = alphas[i] * extra_context_mask
         alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
         ctxs_.append((extra_cc_ * alphas[i][:, :, None]).sum(0))  # current context
 
@@ -1040,7 +1039,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             if i == 0:
                 # TODO: put dropout back somewhere
                 if options['multisource_type'] == 'att-concat':
-                    print(ctx_dropout[2].shape)
+                    #print(ctx_dropout[2].shape)
                     ctx2_ = tensor.dot(ctx_ * ctx_dropout[3],
                                        wn(pp(prefix, 'Wcx' + suffix)))  # dropout mask is shared over mini-steps
 

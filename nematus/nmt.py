@@ -82,8 +82,7 @@ def prepare_data(seqs_x, seqs_y, maxlen=None, n_words_src=30000,
 
     return x, x_mask, y, y_mask
 
-
-# batch preparation for mulit-source
+# batch preparation for multi-source
 # inputs are now lists of inputs
 def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_words=30000, n_factors=1):
     # ensure the same length for all inputs and target
@@ -106,6 +105,11 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
 
         for i, (l_y, s_y) in enumerate(zip(lengths_y, seqs_y)):
 
+            # TODO: try this out (has not yet been tried out)
+            # sanity check - when previous context is very short compared to current sentence
+            if lengths_xs[0][i] - lengths_xs[1][i] > 5:
+                continue
+
             if l_y < maxlen and all(lx[i] < maxlen for lx in lengths_xs):
                 for s in range(len(seqs_xs)):
                     new_seqs_xs[s].append(seqs_xs[s][i])
@@ -123,8 +127,7 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
 
     n_samples = len(seqs_xs[0])
 
-    # TODO: is there a way of making this different for different inputs? for now take the max of all input sources
-    maxlen_xs = [numpy.max(lengths_x) for lengths_x in lengths_xs]
+    maxlen_xs = [numpy.max(lengths_x) + 1 for lengths_x in lengths_xs]
     maxlen_y = numpy.max(lengths_y) + 1
 
     # prepare numpy objects and masks
@@ -139,7 +142,6 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
 
     for idx, s_y in enumerate(seqs_y):
         for i in range(len(seqs_xs)):
-
             xs[i][:, :lengths_xs[i][idx], idx] = zip(*seqs_xs[i][idx])
             x_masks[i][:lengths_xs[i][idx] + 1, idx] = 1.
         y[:lengths_y[idx], idx] = s_y
@@ -328,7 +330,7 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
         input_r = proj[0][::-1]
 
         proj = get_layer_constr(options['encoder'])(tparams, input_f, options, dropout,
-                                                    prefix=prefix_f + suffix,
+                                                    prefix=prefix_f,
                                                     mask=x_mask,
                                                     dropout_probability_below=options['dropout_hidden'],
                                                     dropout_probability_rec=options['dropout_hidden'],
@@ -337,7 +339,7 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
                                                     truncate_gradient=options['encoder_truncate_gradient'],
                                                     profile=profile)
         projr = get_layer_constr(options['encoder'])(tparams, input_r, options, dropout,
-                                                     prefix=prefix_r + suffix,
+                                                     prefix=prefix_r,
                                                      mask=xr_mask,
                                                      dropout_probability_below=options['dropout_hidden'],
                                                      dropout_probability_rec=options['dropout_hidden'],
@@ -458,9 +460,9 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
     ctxs = proj[1]
 
     # weights (alignment matrix)
-    opt_ret['dec_alphas'] = proj[2]
+    opt_ret['dec_alphas0'] = proj[2]
     if options['multisource_type'] is not None:
-        opt_ret['dec_alphas2'] = proj[3]  # auxiliary
+        opt_ret['dec_alphas1'] = proj[3]  # auxiliary
 
     # we return state of each layer
     if sampling:
@@ -468,7 +470,6 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
     else:
         ret_state = None
 
-    # TODO: multisource
     if options['dec_depth'] > 1:
         for level in range(2, options['dec_depth'] + 1):
 
@@ -480,7 +481,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                 input_ = tensor.concatenate([next_state, ctxs], axis=axis)
             else:
                 input_ = next_state
-            # TODO: multisource for normal GRU (not cGRU)
+
             if options['multisource_type'] is not None:
                 out_state = get_layer_constr('bi_gru_cond')(tparams, input_, options, dropout,
                                                                prefix=pp('decoder', level),
@@ -640,8 +641,6 @@ def build_multisource_model(tparams, options):
         x_masks[i].tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
 
         xs[i], ctxs[i] = build_encoder(tparams, options, dropout, x_masks[i], sampling=False, suffix=suff)
-
-        #print("ctx shape = ", ctxs[i].shape)
 
         n_samples[i] = xs[i].shape[2]
         # mean of the context (across time) will be used to initialize decoder rnn
@@ -823,7 +822,7 @@ def build_sampler(tparams, options, use_noise, trng, return_alignment=False):
     outs = [next_probs, next_sample, ret_state]
 
     if return_alignment:
-        outs.append(opt_ret['dec_alphas'])
+        outs.append(opt_ret['dec_alphas0'])
 
     f_next = theano.function(inps, outs, name='f_next', profile=profile)
     logging.info('Done')
@@ -1006,6 +1005,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     sample_score = []
     sample_word_probs = []
     alignment = []
+    aux_alignment = []
     hyp_graph = None
     if stochastic:
         if argmax:
@@ -1154,6 +1154,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             # averaging the attention weights accross models
             if return_alignment:
                 mean_alignment = sum(dec_alphas) / num_models
+                if aux_x is not None:
+                    aux_mean_alignment = sum(dec_alphas1) / num_models
 
             voc_size = next_p[0].shape[1]
             # index of each k-best hypothesis
@@ -1174,7 +1176,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                 new_hyp_alignment = [[] for _ in xrange(k - dead_k)]
 
                 if aux_x is not None:
-                    new_hyp_alignment = [[] for _ in xrange(k - dead_k)]
+                    aux_new_hyp_alignment = [[] for _ in xrange(k - dead_k)]
 
             # ti -> index of k-best hypothesis
             for idx, [ti, wi] in enumerate(zip(trans_indices, word_indices)):
@@ -1187,6 +1189,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     new_hyp_alignment[idx] = copy.copy(hyp_alignment[ti])
                     # extend the history with current attention weights
                     new_hyp_alignment[idx].append(mean_alignment[ti])
+                    if aux_x is not None:
+                        aux_new_hyp_alignment[idx] = copy.copy(aux_hyp_alignment[ti])
+                        aux_new_hyp_alignment[idx].append(aux_mean_alignment[ti])
 
             # check the finished samples
             new_live_k = 0
@@ -1196,6 +1201,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             word_probs = []
             if return_alignment:
                 hyp_alignment = []
+                if aux_x is not None:
+                    aux_hyp_alignment = []
 
             # sample and sample_score hold the k-best translations and their scores
             for idx in xrange(len(new_hyp_samples)):
@@ -1210,6 +1217,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     sample_word_probs.append(new_word_probs[idx])
                     if return_alignment:
                         alignment.append(new_hyp_alignment[idx])
+                        if aux_x is not None:
+                            aux_alignment.append(aux_new_hyp_alignment[idx])
                     dead_k += 1
                 else:
                     new_live_k += 1
@@ -1219,6 +1228,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     word_probs.append(new_word_probs[idx])
                     if return_alignment:
                         hyp_alignment.append(new_hyp_alignment[idx])
+                        if aux_x is not None:
+                            aux_hyp_alignment.append(aux_new_hyp_alignment[idx])
             hyp_scores = numpy.array(hyp_scores)
 
             live_k = new_live_k
@@ -1239,11 +1250,18 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             sample_word_probs.append(word_probs[idx])
             if return_alignment:
                 alignment.append(hyp_alignment[idx])
+                if aux_x is not None:
+                    aux_alignment.append(hyp_alignment[idx])
+        alignments = [[alignment]]
+        if aux_x is not None:
+            alignments.append(aux_alignment)
 
     if not return_alignment:
-        alignment = [None for i in range(len(sample))]
+        alignments = [[None for i in range(len(sample))]]
+        if aux_x is not None:
+            alignments.append([None for _ in range(len(sample))])
 
-    return sample, sample_score, sample_word_probs, alignment, hyp_graph
+    return sample, sample_score, sample_word_probs, alignments, hyp_graph
 
 
 # calculate the log probablities on a given corpus using translation model
@@ -1253,7 +1271,6 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
     alignments_json = []
 
-    # TODO: change back multi
     for xs, y in iterator:
         x = xs[0]
 
@@ -1329,7 +1346,6 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
         else:
             pprobs = f_log_probs(*inps)
 
-        # TODO: do I need to do anything for multi-source??
         # normalize scores according to output length
         if normalization_alpha:
             adjusted_lengths = numpy.array([numpy.count_nonzero(s) ** normalization_alpha for s in y_mask.T])
@@ -1638,7 +1654,6 @@ def train(dim_word=512,  # word vector dimensionality
     tparams = init_theano_params(params)
 
     # ---------------- build model ----------------
-    # TODO: make generic for multi-source
     if multisource_type is not None:
         trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
         inps = [z for i in range(num_encoders) for z in (xs[i], x_masks[i])] + [y, y_mask]
@@ -1666,7 +1681,6 @@ def train(dim_word=512,  # word vector dimensionality
     if model_options['objective'] == 'CE':
         cost = cost.mean()
     elif model_options['objective'] == 'MRT':
-        # TODO: add multisource
         # MRT objective function
         cost, loss = mrt_cost(cost, y_mask, model_options)
         inps += [loss]
@@ -1761,7 +1775,6 @@ def train(dim_word=512,  # word vector dimensionality
     for training_progress.eidx in xrange(training_progress.eidx, max_epochs):
         n_samples = 0
 
-        # TODO: generic multi-source
         for xs, y in train:
             # ease of manipulation
             if multisource_type is not None:
@@ -1797,7 +1810,7 @@ def train(dim_word=512,  # word vector dimensionality
                     xs, x_masks, y, y_mask = prepare_multi_data(xs, y,
                                                                 maxlen=maxlen,
                                                                 n_factors=factors,
-                                                                n_words_src=all_n_words_src, # TODO: diff for multi-source?
+                                                                n_words_src=all_n_words_src,
                                                                 n_words=n_words)
 
                     if any(xx is None for xx in xs):
