@@ -500,17 +500,23 @@ class Translator(object):
 
             x = []
             x2 = []
-            for w, w2 in zip(words, aux_words):
+            for w in words:
                 w = [self._word_dicts[i][f] if f in self._word_dicts[i] else 1 for (i, f) in enumerate(w.split('|'))]
-                w2 = [self._aux_word_dicts[i][f] if f in self._aux_word_dicts[i] else 1 for (i, f) in enumerate(w2.split('|'))]
-                for idx2, word in enumerate([w, w2]):
-                    if len(word) != self._options[0]['factors']:
-                        logging.warning(str(idx2)+': Expected {0} factors, but input word has {1}\n'.format(self._options[0]['factors'], len(word)))
-                        for midx in xrange(self._num_processes):
-                            self._processes[midx].terminate()
-                        sys.exit(1)
+                if len(w) != self._options[0]['factors']:
+                    logging.warning('Expected {0} factors, but input word has {1}\n'.format(self._options[0]['factors'], len(w)))
+                    for midx in xrange(self._num_processes):
+                        self._processes[midx].terminate()
+                    sys.exit(1)
                 x.append(w)
-                x2.append(w2)
+
+            for w in aux_words:
+                w = [self._aux_word_dicts[i][f] if f in self._aux_word_dicts[i] else 1 for (i, f) in enumerate(w.split('|'))]
+                if len(w) != self._options[0]['factors']:
+                    logging.warning('Expected {0} factors, but input word has {1}\n'.format(self._options[0]['factors'], len(w)))
+                    for midx in xrange(self._num_processes):
+                        self._processes[midx].terminate()
+                    sys.exit(1)
+                x2.append(w)
 
             x += [[0] * self._options[0]['factors']]
             x2 += [[0] * self._options[0]['factors']]
@@ -568,6 +574,7 @@ class Translator(object):
         """
         logging.info('Translating {0} segments...\n'.format(len(source_segments)))
         if aux_source_segments is not None:
+
             n_samples, (source_sentences, aux_source_sentences) = self._send_jobs_multisource(source_segments,
                                                                                               aux_source_segments,
                                                                                               translation_settings)

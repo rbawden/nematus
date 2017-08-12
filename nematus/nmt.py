@@ -105,11 +105,6 @@ def prepare_multi_data(seqs_xs, seqs_y, maxlen=None, n_words_src=[30000], n_word
 
         for i, (l_y, s_y) in enumerate(zip(lengths_y, seqs_y)):
 
-            # TODO: try this out (has not yet been tried out)
-            # sanity check - when previous context is very short compared to current sentence
-            if lengths_xs[0][i] - lengths_xs[1][i] > 5:
-                continue
-
             if l_y < maxlen and all(lx[i] < maxlen for lx in lengths_xs):
                 for s in range(len(seqs_xs)):
                     new_seqs_xs[s].append(seqs_xs[s][i])
@@ -414,8 +409,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     if sampling:
         emb = tensor.switch(y[:, None] < 0,
-                            tensor.zeros((1, options['dim_word'])),
-                            emb)
+                            tensor.zeros((1, options['dim_word'])), emb)
     else:
         emb_shifted = tensor.zeros_like(emb)
         emb_shifted = tensor.set_subtensor(emb_shifted[1:], emb[:-1])
@@ -1656,7 +1650,7 @@ def train(dim_word=512,  # word vector dimensionality
     # ---------------- build model ----------------
     if multisource_type is not None:
         trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
-        inps = [z for i in range(num_encoders) for z in (xs[i], x_masks[i])] + [y, y_mask]
+        inps = [xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask]
     else:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
         inps = [x, x_mask, y, y_mask]
@@ -1820,21 +1814,20 @@ def train(dim_word=512,  # word vector dimensionality
                 else:
                     # only one input so use idx 0 of x and n_words_src
                     xs, x_masks, y, y_mask = prepare_multi_data(xs, y, maxlen=maxlen,
-                                                              n_factors=factors,
-                                                              n_words_src=all_n_words_src,
-                                                              n_words=n_words)
+                                                                n_factors=factors,
+                                                                n_words_src=all_n_words_src,
+                                                                n_words=n_words)
                     #xs = [x]
                     #x_masks = [x_mask]
 
                     if xs[0] is None:
-                        logging.warning('Minibatch with zero sample under length %d' % maxlen)
+                        logging.warning('Minibatch with zero samples under length %d' % maxlen)
                         training_progress.uidx -= 1
                         continue
 
                 cost_batches += 1
                 last_disp_samples += xlen
 
-                # TODO: multisource?? changed from x_mask
                 last_words += (numpy.sum(x_masks[0]) + numpy.sum(y_mask)) / 2.0
 
                 # TODO: make generic

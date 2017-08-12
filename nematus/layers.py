@@ -820,10 +820,10 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     #concat_ctx_dropout = dropout((n_samples, 4 * options['dim']), dropout_probability_ctx, num=4)
 
     # concatenate context and extra-contexts to facilitate loops
-    all_ctx_dropouts = [ctx_dropout, extra_ctx_dropout]
-    all_pctxs_ = [pctx_, extra_pctx_]
-    all_contexts = [context, extra_context]
-    all_context_masks = [context_mask, extra_context_mask]
+    #all_ctx_dropouts = [ctx_dropout, extra_ctx_dropout]
+    #all_pctxs_ = [pctx_, extra_pctx_]
+    #all_contexts = [context, extra_context]
+    #all_context_masks = [context_mask, extra_context_mask]
 
     # auxiliary slice function
     def _slice(_x, n, dim):
@@ -842,6 +842,9 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     # TODO: cannot pass a list here, so only 2 inputs are possible for now
     def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctx_, extra_pctx_, cc_, extra_cc_,rec_dropout,
                                                                                     ctx_dropout, extra_ctx_dropout):
+
+        hi = theano.printing.Print('CC')(extra_cc_.shape)
+
 
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
