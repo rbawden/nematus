@@ -1845,8 +1845,7 @@ def train(dim_word=512,  # word vector dimensionality
                         counter += 1
                         debug.close()
                     cost = f_update(lrate, xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask)
-                    counter += 1
-                    debug.close()
+
                 else:
                     cost = f_update(lrate, xs[0], x_masks[0], y, y_mask)
 
