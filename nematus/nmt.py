@@ -1442,10 +1442,13 @@ def train(dim_word=512,  # word vector dimensionality
           extra_source_dicts=[],  # dictionaries for secondary input (multi-source)
           extra_source_dicts_nums=None,  # number of auxiliary dictionaries for extra input
           extra_n_words_src=[],
-          multisource_type=None  # multisource combination type
+          multisource_type=None, # multisource combination type
+          debugm=False
           ):
     # ---------------- Model options ----------------
     model_options = OrderedDict(sorted(locals().copy().items()))
+
+    counter = 0
 
     if model_options['dim_per_factor'] == None:
         if factors == 1:
@@ -1832,7 +1835,14 @@ def train(dim_word=512,  # word vector dimensionality
                 # TODO: make generic
                 # compute cost, grads and update parameters
                 if multisource_type is not None:
+                    if debugm:
+                        debug.write(str(counter)+": \n")
+                        debug.write(len(xs), str(len(x_masks))+"\n")
+                        debug.write(xs[0].shape, xs[1].shape, x_masks[0].shape, str(x_masks[1].shape)+"\n")
+                        debug.write(str(xs[0])+"\n")
+                        debug.write(str(xs[1])+"\n")
                     cost = f_update(lrate, xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask)
+                    counter += 1
                 else:
                     cost = f_update(lrate, xs[0], x_masks[0], y, y_mask)
 
@@ -2345,6 +2355,8 @@ if __name__ == '__main__':
     multi.add_argument('--multisource_type', choices=("att-concat", "att-gate", "att-hier"), default=None)
     multi.add_argument('--extra_n_words_src', type=int, nargs="+", default=[], metavar='INT',
                          help="extra source vocabulary size (default: %(default)s)")
+    multi.add_argument('--debugm', default=False, action='store_true')
+
 
     args = parser.parse_args()
 
