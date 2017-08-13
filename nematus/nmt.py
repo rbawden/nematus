@@ -1835,6 +1835,7 @@ def train(dim_word=512,  # word vector dimensionality
                 # TODO: make generic
                 # compute cost, grads and update parameters
                 if multisource_type is not None:
+                    debug = open('debugtrain.txt', 'a')
                     if debugm:
                         debug.write(str(counter)+": \n")
                         debug.write(len(xs), str(len(x_masks))+"\n")
@@ -1843,6 +1844,7 @@ def train(dim_word=512,  # word vector dimensionality
                         debug.write(str(xs[1])+"\n")
                     cost = f_update(lrate, xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask)
                     counter += 1
+                    debug.close()
                 else:
                     cost = f_update(lrate, xs[0], x_masks[0], y, y_mask)
 
