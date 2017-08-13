@@ -1078,7 +1078,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             next_p[i], next_w_tmp, next_state[i] = ret[0], ret[1], ret[2]
             if return_alignment:
                 dec_alphas[i] = ret[3]
-
                 # multi-source
                 if aux_x is not None:
                     dec_alphas1[i] = ret[4]
@@ -1245,7 +1244,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             if return_alignment:
                 alignment.append(hyp_alignment[idx])
                 if aux_x is not None:
-                    aux_alignment.append(hyp_alignment[idx])
+                    aux_alignment.append(aux_hyp_alignment[idx])
         alignments = [[alignment]]
         if aux_x is not None:
             alignments.append(aux_alignment)

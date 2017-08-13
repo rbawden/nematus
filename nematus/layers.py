@@ -842,10 +842,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     # TODO: cannot pass a list here, so only 2 inputs are possible for now
     def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctx_, extra_pctx_, cc_, extra_cc_,rec_dropout,
                                                                                     ctx_dropout, extra_ctx_dropout):
-
-        hi = theano.printing.Print('CC')(extra_cc_.shape)
-
-
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
             xx_ = layer_norm(xx_, tparams[pp(prefix, 'Wx_lnb')], tparams[pp(prefix, 'Wx_lns')])
@@ -959,17 +955,23 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             #sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
 
             main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropout[4], wn(pp(prefix, 'W_att-gate-ctx1')))
+            main_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
             aux_pctx_ = tensor.dot(ctxs_[1] * extra_ctx_dropout[4], wn(pp(prefix, 'W_att-gate-ctx2')))
+            aux_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
 
             #g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
             g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
 
+            #print(g_.tag.test_value.shape)
+            #g_ = theano.printing.Print('g_')(g_)
+
             if options['layer_normalisation']:
                 g_ = layer_norm(g_, tparams[pp(prefix, 'W_att-gate_lnb')],
                                 tparams[pp(prefix, 'W_att-gate_lns')])
-            # softmax
+
+            # normalise between 0 and 1
             g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
-            g_ = g_ / g_.sum(0, keepdims=True)
+            #g_ = g_ / g_.sum(0, keepdims=True)
 
             # apply to contexts TODO just testing
             ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
