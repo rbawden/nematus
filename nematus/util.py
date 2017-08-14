@@ -32,7 +32,7 @@ def load_config(basename):
         except:
             #RB added: look for model.npz json file for checkpointed files (e.g. model.iter30000.npz
             try:
-                basebasename = re.match('(.*?)iter\d+.npz', basename)[0]
+                basebasename = re.match('(.*?)iter\d+.npz', basename).group(1)
                 print(basebasename)
                 with open('%s.json' % basebasename, 'rb') as f:
                     return json.load(f)
