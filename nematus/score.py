@@ -32,7 +32,7 @@ def load_scorer(model, option, alignweights=None):
     params = load_params(model, param_list)
     tparams = init_theano_params(params)
 
-    if option['multisource_type'] is None:
+    if model.option['multisource_type'] is None:
         print("building single source model")
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, option)
         inps = [x, x_mask, y, y_mask]
@@ -44,7 +44,7 @@ def load_scorer(model, option, alignweights=None):
 
     if alignweights:
         logging.debug("Save weight mode ON, alignment matrix will be saved.")
-        if option['multisource_type'] is not None:
+        if model.option['multisource_type'] is not None:
             outputs = [cost, opt_ret['dec_alphas'], opt_ret['dec_alphas2']]
             f_log_probs = theano.function(inps, outputs)
         else:
