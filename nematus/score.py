@@ -32,6 +32,12 @@ def load_scorer(model, option, alignweights=None):
     params = load_params(model, param_list)
     tparams = init_theano_params(params)
 
+    # compatibility with multi-source
+    if 'extra_sources' not in option:
+        option['extra_sources'] = []
+    if 'multisource_type' not in option:
+        option['multisource_type'] = None
+
 
     if 'multisource_type' not in option or option['multisource_type'] is None:
         print("building single source model")
