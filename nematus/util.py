@@ -21,7 +21,6 @@ def load_dict(filename):
 
 
 def load_config(basename):
-    print(basename)
     try:
         with open('%s.json' % basename, 'rb') as f:
             return json.load(f)
@@ -32,8 +31,7 @@ def load_config(basename):
         except:
             #RB added: look for model.npz json file for checkpointed files (e.g. model.iter30000.npz
             try:
-                basebasename = re.match('(.*?)iter\d+.npz', basename).group(1)
-                print(basebasename)
+                basebasename = re.match('(.*?)iter\d+.npz', basename).group(1)+".npz"
                 with open('%s.json' % basebasename, 'rb') as f:
                     return json.load(f)
             except:
