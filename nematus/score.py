@@ -113,7 +113,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 # Multi-source version of rescore model (just 2 inputs for now)
 # source_files, savetos are lists
 def multi_rescore_model(source_files, target_file, savetos, models, options, b,
-                        normalization_alpha, verbose, alignweights):
+                        normalization_alpha, verbose, alignweights, extra_sources):
     assert len(source_files) == len(savetos)  # as many inputs as different alignments
 
     trng = RandomStreams(1234)
@@ -139,15 +139,20 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
     sents = TextIterator(source_files[0].name, source_files[1].name, target_file.name,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
                          n_words_source=options[0]['n_words_src'], n_words_target=options[0]['n_words'],
-                         batch_size=b, maxlen=float('inf'), sort_by_length=False)
+                         batch_size=b, maxlen=float('inf'), sort_by_length=False,
+                         extra_sources=extra_sources)
     # TODO: sorting by length could be more efficient, but we'd want to resort after
 
     scores, alignments = _score(sents, alignweights)
 
     source_lines = []
+    extra_source_lines = []
     for ss in source_files:
         ss.seek(0)
         source_lines.append(ss.readlines())
+    for xss in extra_sources:
+        xss.seek(0)
+        extra_source_lines.append(xss.readlines)
 
     target_file.seek(0)
     target_lines = target_file.readlines()
@@ -171,7 +176,8 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
                 combine_source_target_text_1to1(source_files[i], target_file, savetos[i].name, align_OUT, suffix=str(i))
 
 
-def main(models, source_files, nbest_file, saveto, b=80, normalization_alpha=0.0, verbose=False, alignweights=False):
+def main(models, source_files, nbest_file, saveto, b=80, normalization_alpha=0.0, verbose=False, alignweights=False,
+        extra_sources=None):
     # load model model_options
     options = []
     for model in models:
@@ -180,11 +186,12 @@ def main(models, source_files, nbest_file, saveto, b=80, normalization_alpha=0.0
         fill_options(options[-1])
 
     # multi-source or single source functions
-    if len(source_files)==1:
-        rescore_model(source_files[0], nbest_file, saveto, models, options, b, normalization_alpha, verbose, alignweights)
+    if extra_sources is None:
+        rescore_model(source_files, nbest_file, saveto, models, options, b, normalization_alpha, verbose, alignweights)
     else:
         savetos = [saveto+"_"+str(i) for i in range(len(source_files))]
-        multi_rescore_model(source_files, nbest_file, savetos, models, options, b, normalization_alpha, verbose, alignweights)
+        multi_rescore_model(source_files, nbest_file, savetos, models, options, b, normalization_alpha, verbose, alignweights,
+                            extra_sources=extra_sources)
 
 
 if __name__ == "__main__":
@@ -204,6 +211,8 @@ if __name__ == "__main__":
                         help="Output file (default: standard output)")
     parser.add_argument('--walign', '-w', required=False, action="store_true",
                         help="Whether to store the alignment weights or not. If specified, weights will be saved in <target>.alignment")
+    # added multisource arguments
+    parser.add_argument('--extra_sources', nargs='+', type=argparse.FileType('r'), default=None, metavar='PATH', help="Auxiliary input file")
 
     args = parser.parse_args()
 
@@ -212,4 +221,4 @@ if __name__ == "__main__":
     logging.basicConfig(level=level, format='%(levelname)s: %(message)s')
 
     main(args.models, args.source, args.target, args.output, b=args.b, normalization_alpha=args.n, verbose=args.v,
-         alignweights=args.walign)
+         alignweights=args.walign, extra_sources=args.aux_sources)
