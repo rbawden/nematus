@@ -136,7 +136,7 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
 
     # list of sources + target sentences (target sentences are the final list)
     # TODO: make TextIterator generic
-    sents = TextIterator(source_files[0].name, target_file.name,
+    sents = TextIterator(source_files, target_file,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
                          n_words_source=options[0]['n_words_src'], n_words_target=options[0]['n_words'],
                          batch_size=b, maxlen=float('inf'), sort_by_length=False,
@@ -192,7 +192,6 @@ def main(models, source_files, nbest_file, saveto, b=80, normalization_alpha=0.0
         savetos = [saveto+"_"+str(i) for i in range(len(source_files))]
         multi_rescore_model(source_files, nbest_file, savetos, models, options, b, normalization_alpha, verbose, alignweights,
                             extra_sources=extra_sources)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
