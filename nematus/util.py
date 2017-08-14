@@ -5,6 +5,7 @@ Utility functions
 import sys
 import json
 import cPickle as pkl
+import re
 
 #json loads strings as unicode; we currently still work with Python 2 strings, and need conversion
 def unicode_to_utf8(d):
@@ -20,6 +21,7 @@ def load_dict(filename):
 
 
 def load_config(basename):
+    print(basename)
     try:
         with open('%s.json' % basename, 'rb') as f:
             return json.load(f)
@@ -28,8 +30,14 @@ def load_config(basename):
             with open('%s.pkl' % basename, 'rb') as f:
                 return pkl.load(f)
         except:
-            sys.stderr.write('Error: config file {0}.json is missing\n'.format(basename))
-            sys.exit(1)
+            #RB added: look for model.npz json file for checkpointed files (e.g. model.iter30000.npz
+            try:
+                basebasename = re.match('(.*?)iter\d+.npz', basename)[0]
+                with open('%s.json' % basebasename, 'rb') as f:
+                    return json.load(f)
+            except:
+                sys.stderr.write('Error: config file {0}.json is missing\n'.format(basename))
+                sys.exit(1)
 
 
 def seqs2words(seq, inverse_target_dictionary, join=True):
