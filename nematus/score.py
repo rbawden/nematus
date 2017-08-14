@@ -176,7 +176,7 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
                 combine_source_target_text_1to1(source_files[i], target_file, savetos[i].name, align_OUT, suffix=str(i))
 
 
-def main(models, source_files, target_file, nbest_file, saveto, b=80, normalization_alpha=0.0, verbose=False, alignweights=False,
+def main(models, source_files, target_file, saveto, b=80, normalization_alpha=0.0, verbose=False, alignweights=False,
         extra_sources=None):
     # load model model_options
     options = []
@@ -187,10 +187,10 @@ def main(models, source_files, target_file, nbest_file, saveto, b=80, normalizat
 
     # multi-source or single source functions
     if extra_sources is None:
-        rescore_model(source_files[0], target_file, nbest_file, saveto, models, options, b, normalization_alpha, verbose, alignweights)
+        rescore_model(source_files[0], target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights)
     else:
         savetos = [saveto+"_"+str(i) for i in range(len(source_files))]
-        multi_rescore_model(source_files, target_file, nbest_file, savetos, models, options, b, normalization_alpha, verbose, alignweights,
+        multi_rescore_model(source_files, target_file, savetos, models, options, b, normalization_alpha, verbose, alignweights,
                             extra_sources=extra_sources)
 
 if __name__ == "__main__":
