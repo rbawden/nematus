@@ -546,6 +546,14 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
             params[pp(prefix, 'W_att-gate_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
             params[pp(prefix, 'W_att-gate_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
 
+    elif options["multisource_type"] == "att-gate2":
+        #params[pp(prefix, 'W_att-gate-ym1')] = norm_weight(nin_nonlin, dimctx[0])
+        #params[pp(prefix, 'W_att-gate-sm1')] = norm_weight(dim_nonlin, dimctx[0])
+        params[pp(prefix, 'W_att-gate2-ctx1')] = norm_weight(dimctx[0], 1)
+        params[pp(prefix, 'W_att-gate2-ctx2')] = norm_weight(dimctx[1], 1)
+        params[pp(prefix, 'b_att-gate2')] = numpy.zeros((1,)).astype(floatX)
+
+
     elif options['multisource_type'] == 'att-hier':
         params[pp(prefix, 'U_att-hier')] = norm_weight(dimctx[i], 1)
 
@@ -902,6 +910,8 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
         ctxs_.append((cc_ * alphas[i][:, :, None]).sum(0))  # current context
 
+
+
         #theano.printing.Print('Ctx1')(ctxs_[i])
 
         # AUXILIARY ONE
@@ -928,6 +938,12 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             alphas[i] = alphas[i] * extra_context_mask
         alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
         ctxs_.append((extra_cc_ * alphas[i][:, :, None]).sum(0))  # current context
+
+        ctxs_[0].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+        ctxs_[1].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+
+        #print("ctx shape 0 = ", ctxs_[0].tag.test_value.shape)
+        #print("ctx shape 1 = ", ctxs_[1].tag.test_value.shape)
 
         # -------------- combine the resulting contexts --------------
         # concatenate the multiple context vectors and project to original dimensions
@@ -975,6 +991,37 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             # apply to contexts TODO just testing
             ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
+
+        elif options['multisource_type'] == "att-gate2":
+
+            # linear combination of (i) y_i-1 (previous embedded target word),
+            # (ii) s_i-1 (previous decoder state), (iii) ctx_ (main context vector) and
+            # (iv) aux_ctx_ (auxiliary context vector)
+            # ym1_ = xxx_
+            # sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
+
+            main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropout[4], wn(pp(prefix, 'W_att-gate2-ctx1')))
+            main_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+            aux_pctx_ = tensor.dot(ctxs_[1] * extra_ctx_dropout[4], wn(pp(prefix, 'W_att-gate2-ctx2')))
+            aux_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+
+            # g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
+            g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate2')]
+
+            # print(g_.tag.test_value.shape)
+            g_ = theano.printing.Print('g_')(g_)
+
+            # normalise between 0 and 1
+            g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
+            #g_ = g_.reshape([g_.shape[1], g_.shape[0]])
+            g_ = theano.printing.Print('g_')(g_)
+            # g_ = g_ / g_.sum(0, keepdims=True)
+
+            # apply to contexts TODO just testing
+            ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
+            ctx_ = theano.printing.Print('g_')(ctx_)
+
+
 
         elif options['multisource_type'] == "att-hier":
 

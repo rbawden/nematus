@@ -364,6 +364,8 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
                                                     truncate_gradient=options['encoder_truncate_gradient'],
                                                     profile=profile)[0]
 
+    #print("ctx shape = ", ctx.tag.test_value.shape)
+
     return x, ctx
 
 
@@ -653,7 +655,7 @@ def build_multisource_model(tparams, options):
     # ------------ DECODER ------------
     # initial decoder state
     # different ways of combining the two attention mechanisms
-    if options['multisource_type'] in ('att-concat', 'att-gate', 'att-hier'):
+    if options['multisource_type'] in ('att-concat', 'att-gate', 'att-hier', 'att-gate2'):
         # mean of contexts
         ctx_mean_combo = numpy.sum(ctx_means)/len(ctx_means)
 
@@ -946,7 +948,7 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
                             tparams[pp(prefix, 'b_nl')],
                             tparams[pp(prefix, 'bx_nl')]])
 
-        if options['multisource_type'] == 'att-gate':
+        if options['multisource_type'] == 'att-gate' or options['multisource_type'] == 'att-gate2':
             shared_vars.append(tparams[pp(prefix, 'W_comb_att')])
 
 
@@ -2355,7 +2357,7 @@ if __name__ == '__main__':
                        help="number of auxiliary network vocabularies per extra input (in the same order")
     multi.add_argument('--extra_valid_sources', type=str, metavar='PATH', default=[], nargs='+',
                        help="auxiliary parallel validation corpora (source)")
-    multi.add_argument('--multisource_type', choices=("att-concat", "att-gate", "att-hier"), default=None)
+    multi.add_argument('--multisource_type', choices=("att-concat", "att-gate","att-gate2", "att-hier"), default=None)
     multi.add_argument('--extra_n_words_src', type=int, nargs="+", default=[], metavar='INT',
                          help="extra source vocabulary size (default: %(default)s)")
     multi.add_argument('--debugm', default=False, action='store_true')
