@@ -58,6 +58,7 @@ def init_theano_params(params):
     for kk, pp in params.iteritems():
         #print('tparams["'+str(kk)+'"] = theano.shared(params["'+str(kk)+'"], name="'+str(kk)+'")')
         tparams[kk] = theano.shared(params[kk], name=kk)
+
     return tparams
 
 

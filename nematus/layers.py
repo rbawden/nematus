@@ -542,9 +542,9 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
         params[pp(prefix, 'W_att-gate-ctx1')] = norm_weight(dimctx[0])
         params[pp(prefix, 'W_att-gate-ctx2')] = norm_weight(dimctx[1])
         params[pp(prefix, 'b_att-gate')] = numpy.zeros((dimctx[0],)).astype(floatX)
-        if options['layer_normalisation']:
-            params[pp(prefix, 'W_att-gate_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
-            params[pp(prefix, 'W_att-gate_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
+        #if options['layer_normalisation']:
+        #    params[pp(prefix, 'W_att-gate_lnb')] = scale_add * numpy.ones((1 * dimctx[0])).astype(floatX)
+        #    params[pp(prefix, 'W_att-gate_lns')] = scale_mul * numpy.ones((1 * dimctx[0])).astype(floatX)
 
     elif options["multisource_type"] == "att-gate2":
         #params[pp(prefix, 'W_att-gate-ym1')] = norm_weight(nin_nonlin, dimctx[0])
@@ -910,10 +910,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
         ctxs_.append((cc_ * alphas[i][:, :, None]).sum(0))  # current context
 
-
-
-        #theano.printing.Print('Ctx1')(ctxs_[i])
-
         # AUXILIARY ONE
         suff = str(1)
         i=1
@@ -941,9 +937,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         ctxs_[0].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
         ctxs_[1].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
-
-        #print("ctx shape 0 = ", ctxs_[0].tag.test_value.shape)
-        #print("ctx shape 1 = ", ctxs_[1].tag.test_value.shape)
 
         # -------------- combine the resulting contexts --------------
         # concatenate the multiple context vectors and project to original dimensions
@@ -977,16 +970,15 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             #g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
             g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
+            g_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+            g_ = tanh(g_)
 
-            #print(g_.tag.test_value.shape)
-            #g_ = theano.printing.Print('g_')(g_)
-
-            if options['layer_normalisation']:
-                g_ = layer_norm(g_, tparams[pp(prefix, 'W_att-gate_lnb')],
-                                tparams[pp(prefix, 'W_att-gate_lns')])
+            #if options['layer_normalisation']:
+            #    g_ = layer_norm(g_, tparams[pp(prefix, 'W_att-gate_lnb')],
+            #                    tparams[pp(prefix, 'W_att-gate_lns')])
 
             # normalise between 0 and 1
-            g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
+            #g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
             #g_ = g_ / g_.sum(0, keepdims=True)
 
             # apply to contexts TODO just testing
@@ -1002,19 +994,24 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropout[4], wn(pp(prefix, 'W_att-gate2-ctx1')))
             main_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+            #main_pctx_ = theano.printing.Print('main_pctx_')(main_pctx_)
             aux_pctx_ = tensor.dot(ctxs_[1] * extra_ctx_dropout[4], wn(pp(prefix, 'W_att-gate2-ctx2')))
-            aux_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+            #aux_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
 
             # g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
             g_ = main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate2')]
+            g_ = tanh(g_)
+            g_.tag.test_value = numpy.ones(shape=(10, 1)).astype(floatX)
 
             # print(g_.tag.test_value.shape)
-            g_ = theano.printing.Print('g_')(g_)
+            #g_ = theano.printing.Print('g_')(g_)
+            print("g_ = ", g_.tag.test_value.shape)
+            print("ctxs1 = ", ctxs_[1].tag.test_value.shape)
 
             # normalise between 0 and 1
-            g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
+            #g_ = tensor.exp(g_ - g_.max(0, keepdims=True))
             #g_ = g_.reshape([g_.shape[1], g_.shape[0]])
-            g_ = theano.printing.Print('g_')(g_)
+            #g_ = theano.printing.Print('g_')(g_)
             # g_ = g_ / g_.sum(0, keepdims=True)
 
             # apply to contexts TODO just testing
