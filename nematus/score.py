@@ -221,4 +221,4 @@ if __name__ == "__main__":
     logging.basicConfig(level=level, format='%(levelname)s: %(message)s')
 
     main(args.models, args.source, args.target, args.output, b=args.b, normalization_alpha=args.n, verbose=args.v,
-         alignweights=args.walign, extra_sources=args.aux_sources)
+         alignweights=args.walign, extra_sources=args.extra_sources)
