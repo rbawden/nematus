@@ -99,6 +99,9 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
     # source_lines = source_file.readlines()
     target_lines = target_file.readlines()
 
+    print(scores)
+    print(len(scores), len(target_lines))
+
     for i, line in enumerate(target_lines):
         score_str = ' '.join(map(str, [s[i] for s in scores]))
         if verbose:
