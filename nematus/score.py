@@ -38,34 +38,32 @@ def load_scorer(model, option, alignweights=None):
     if 'multisource_type' not in option:
         option['multisource_type'] = None
 
-
     if 'multisource_type' not in option or option['multisource_type'] is None:
         print("building single source model")
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, option)
         inps = [x, x_mask, y, y_mask]
     else:
-        trng, use_noise, x, x_mask, aux_x, aux_x_mask, y, y_mask, opt_ret, cost = build_multisource_model(tparams, option)
-        inps = [x, x_mask, aux_x, aux_x_mask, y, y_mask]
+        trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, option)
+        inps = [xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask]
 
     use_noise.set_value(0.)
 
     if alignweights:
         logging.debug("Save weight mode ON, alignment matrix will be saved.")
         if 'multisource_type' not in option or option['multisource_type'] is None:
-            outputs = [cost, opt_ret['dec_alphas']]
+            outputs = [cost, opt_ret['dec_alphas'], opt_ret['cost_per_word']]
         else:
-            outputs = [cost, opt_ret['dec_alphas'], opt_ret['dec_alphas2']]
+            outputs = [cost, opt_ret['dec_alphas'], opt_ret['dec_alphas2'], opt_ret['cost_per_word']]
         f_log_probs = theano.function(inps, outputs)
     else:
-        f_log_probs = theano.function(inps, cost)
+        f_log_probs = theano.function(inps, [cost, opt_ret['cost_per_word']])
 
     return f_log_probs
 
 
-def rescore_model(source_file, target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights):
+def rescore_model(source_file, target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights,
+                  per_word=False):
     trng = RandomStreams(1234)
-
-    print("normalisation = "+str(normalization_alpha))
 
     # changed for multi-source: sources are a lsit
     def _score(pairs, alignweights=True):
@@ -76,14 +74,12 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
 
             # TODO: make multi ?
-            score, alignments = pred_probs(f_log_probs, prepare_data, options[i], pairs,
+            score, alignments, costs_per_word = pred_probs(f_log_probs, prepare_data, options[i], pairs,
                                                   normalization_alpha=normalization_alpha, alignweights=alignweights)
             scores.append(score)
             sent_alignments.append(alignments)
 
-        return scores, sent_alignments
-
-    print("n words src = "+str(options[0]['n_words_src']))
+        return scores, sent_alignments, costs_per_word
 
     pairs = TextIterator(source_file.name, target_file.name,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
@@ -92,7 +88,11 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
                          maxlen=float('inf'),
                          sort_by_length=False)  # TODO: sorting by length could be more efficient, but we'd want to resort after
 
-    scores, alignments = _score(pairs, alignweights)
+    scores, alignments, costs_per_word = _score(pairs, alignweights)
+
+    # choose to output per-word scores rather than per-sentence scores
+    if per_word:
+        scores = costs_per_word
 
     source_file.seek(0)
     target_file.seek(0)
@@ -119,8 +119,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 # Multi-source version of rescore model (just 2 inputs for now)
 # source_files, savetos are lists
 def multi_rescore_model(source_files, target_file, savetos, models, options, b,
-                        normalization_alpha, verbose, alignweights, extra_sources):
-    assert len(source_files) == len(savetos)  # as many inputs as different alignments
+                        normalization_alpha, verbose, alignweights, extra_sources=None, per_word=False):
 
     trng = RandomStreams(1234)
 
@@ -131,34 +130,38 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
         aux_alignments = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
-            score, alignment, aux_alignment = multi_pred_probs(f_log_probs, prepare_multi_data, options[i],
+            score, all_alignments, costs_per_word = multi_pred_probs(f_log_probs, prepare_multi_data, options[i],
                                                          pairs, normalization_alpha=normalization_alpha,
                                                          alignweights=alignweights)
             scores.append(score)
-            alignments.append(alignment)
-            aux_alignments.append(aux_alignment)
+            if all_alignments != []:
+                alignments.append(all_alignments[0])
+                aux_alignments.append(all_alignments[1])
 
-        return scores, (alignments, aux_alignments)
+        return scores, (alignments, aux_alignments), costs_per_word
+
 
     # list of sources + target sentences (target sentences are the final list)
     # TODO: make TextIterator generic
-    sents = TextIterator(source_files, target_file,
+    sents = TextIterator(source_files[0].name, target_file.name,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
                          n_words_source=options[0]['n_words_src'], n_words_target=options[0]['n_words'],
                          batch_size=b, maxlen=float('inf'), sort_by_length=False,
-                         extra_sources=extra_sources)
+                         extra_sources=[ss.name for ss in extra_sources])
     # TODO: sorting by length could be more efficient, but we'd want to resort after
 
-    scores, alignments = _score(sents, alignweights)
+    scores, alignments, costs_per_word = _score(sents, alignweights)
+
+    # choose to output per-word scores rather than per-sentence scores
+    if per_word:
+        scores = costs_per_word
 
     source_lines = []
     extra_source_lines = []
-    for ss in source_files:
-        ss.seek(0)
-        source_lines.append(ss.readlines())
-    for xss in extra_sources:
-        xss.seek(0)
-        extra_source_lines.append(xss.readlines)
+
+    source_files[0].seek(0)
+    source_lines.append(source_files[0].readlines())
+    extra_source_lines.append(extra_sources[0].readlines)
 
     target_file.seek(0)
     target_lines = target_file.readlines()
@@ -167,8 +170,8 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
     for i, line in enumerate(target_lines):
         score_str = ' '.join(map(str, [s[i] for s in scores]))
         if verbose:
-            savetos[i].write('{0} '.format(line.strip()))
-        savetos[i].write('{0}\n'.format(score_str))
+            savetos[0].write('{0} '.format(line.strip()))
+        savetos[0].write('{0}\n'.format(score_str))
 
     # optional save weights mode.
     if alignweights:
@@ -183,7 +186,7 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
 
 
 def main(models, source_files, target_file, saveto, b=80, normalization_alpha=0.0, verbose=False, alignweights=False,
-        extra_sources=None):
+        extra_sources=None, per_word=False):
     # load model model_options
     options = []
     for model in models:
@@ -193,11 +196,12 @@ def main(models, source_files, target_file, saveto, b=80, normalization_alpha=0.
 
     # multi-source or single source functions
     if extra_sources is None:
-        rescore_model(source_files[0], target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights)
+        rescore_model(source_files[0], target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights,
+                      per_word=per_word)
     else:
-        savetos = [saveto+"_"+str(i) for i in range(len(source_files))]
+        savetos = [saveto, file(saveto.name + '_extra', 'w')]
         multi_rescore_model(source_files, target_file, savetos, models, options, b, normalization_alpha, verbose, alignweights,
-                            extra_sources=extra_sources)
+                            extra_sources=extra_sources, per_word=per_word)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -218,7 +222,8 @@ if __name__ == "__main__":
                         help="Whether to store the alignment weights or not. If specified, weights will be saved in <target>.alignment")
     # added multisource arguments
     parser.add_argument('--extra_sources', nargs='+', type=argparse.FileType('r'), default=None, metavar='PATH', help="Auxiliary input file")
-
+    # costs per word
+    parser.add_argument("--per_word", default=False, action="store_true", help="Output costs per word instead of per sentence")
     args = parser.parse_args()
 
     # set up logging
@@ -226,4 +231,4 @@ if __name__ == "__main__":
     logging.basicConfig(level=level, format='%(levelname)s: %(message)s')
 
     main(args.models, args.source, args.target, args.output, b=args.b, normalization_alpha=args.n, verbose=args.v,
-         alignweights=args.walign, extra_sources=args.extra_sources)
+         alignweights=args.walign, extra_sources=args.extra_sources, per_word=args.per_word)

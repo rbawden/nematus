@@ -595,6 +595,8 @@ def build_model(tparams, options):
     y_flat_idx = tensor.arange(y_flat.shape[0]) * options['n_words'] + y_flat
     cost = -tensor.log(probs.flatten()[y_flat_idx])
     cost = cost.reshape([y.shape[0], y.shape[1]])
+    # per word cost
+    opt_ret['cost_per_word'] = cost * y_mask
     cost = (cost * y_mask).sum(0)
 
     # print "Print out in build_model()"
@@ -688,6 +690,8 @@ def build_multisource_model(tparams, options):
     y_flat_idx = tensor.arange(y_flat.shape[0]) * options['n_words'] + y_flat
     cost = -tensor.log(probs.flatten()[y_flat_idx])
     cost = cost.reshape([y.shape[0], y.shape[1]])
+    # per word cost
+    opt_ret['cost_per_word'] = cost
     cost = (cost * y_mask).sum(0)
 
     return trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost
@@ -1284,11 +1288,11 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
         ### in optional save weights mode.
         if alignweights:
-            pprobs, attention = f_log_probs(x, x_mask, y, y_mask)
+            pprobs, attention, costs_per_word = f_log_probs(x, x_mask, y, y_mask)
             for jdata in get_alignments(attention, x_mask, y_mask):
                 alignments_json.append(jdata)
         else:
-            pprobs = f_log_probs(x, x_mask, y, y_mask)
+            pprobs, costs_per_word = f_log_probs(x, x_mask, y, y_mask)
 
         # normalize scores according to output length
         if normalization_alpha:
@@ -1300,7 +1304,7 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
         logging.debug('%d samples computed' % (n_done))
 
-    return numpy.array(probs), alignments_json
+    return numpy.array(probs), alignments_json, costs_per_word
 
 
 # calculate the log probablities on a given corpus using translation model (multi-source version
@@ -1332,14 +1336,14 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
 
         if alignweights:
-            pprobs, attentions = f_log_probs(*inps)
+            pprobs, attentions, costs_per_word = f_log_probs(*inps)
             for i, attention in enumerate(attentions):
                 alignment_json = []
                 for jdata in get_alignments(attention, x_masks[i], y_mask):
                     alignment_json.append(jdata)
                 alignments_json.append(alignment_json)
         else:
-            pprobs = f_log_probs(*inps)
+            pprobs, costs_per_word = f_log_probs(*inps)
 
         # normalize scores according to output length
         if normalization_alpha:
@@ -1351,7 +1355,7 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
 
         logging.debug('%d samples computed' % (n_done))
 
-    return numpy.array(probs), alignments_json
+    return numpy.array(probs), alignments_json, costs_per_word
 
 
 def train(dim_word=512,  # word vector dimensionality
@@ -1673,7 +1677,7 @@ def train(dim_word=512,  # word vector dimensionality
 
     # before any regularizer
     logging.info('Building f_log_probs...')
-    f_log_probs = theano.function(inps, cost, profile=profile)
+    f_log_probs = theano.function(inps, [cost, opt_ret['cost_per_word']], profile=profile)
     logging.info('Done')
 
     if model_options['objective'] == 'CE':
@@ -2079,9 +2083,9 @@ def train(dim_word=512,  # word vector dimensionality
             if valid is not None and validFreq and numpy.mod(training_progress.uidx, validFreq) == 0:
                 use_noise.set_value(0.)
                 if multisource_type is not None:
-                    valid_errs, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
+                    valid_errs, alignments, _ = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
                 else:
-                    valid_errs, alignment = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
+                    valid_errs, alignment, _ = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
 
                 valid_err = valid_errs.mean()
                 training_progress.history_errs.append(float(valid_err))
@@ -2168,9 +2172,9 @@ def train(dim_word=512,  # word vector dimensionality
     if valid is not None:
         use_noise.set_value(0.)
         if multisource_type is not None:
-            valid_errs, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
+            valid_errs, alignments, _ = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
         else:
-            valid_errs, alignments = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
+            valid_errs, alignments, _ = multi_pred_probs(f_log_probs, prepare_multi_data, model_options, valid)
         valid_err = valid_errs.mean()
 
         logging.info('Valid {}'.format(valid_err))
