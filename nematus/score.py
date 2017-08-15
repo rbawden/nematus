@@ -166,6 +166,9 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
     target_file.seek(0)
     target_lines = target_file.readlines()
 
+    print(scores)
+    print(len(scores), len(target_lines))
+
     # print out scores for each translation
     for i, line in enumerate(target_lines):
         score_str = ' '.join(map(str, [s[i] for s in scores]))
