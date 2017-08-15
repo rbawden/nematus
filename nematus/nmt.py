@@ -596,7 +596,7 @@ def build_model(tparams, options):
     cost = -tensor.log(probs.flatten()[y_flat_idx])
     cost = cost.reshape([y.shape[0], y.shape[1]])
     # per word cost
-    opt_ret['cost_per_word'] = cost * y_mask
+    opt_ret['cost_per_word'] = cost
     cost = (cost * y_mask).sum(0)
 
     # print "Print out in build_model()"
