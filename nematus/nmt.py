@@ -364,8 +364,6 @@ def build_encoder(tparams, options, dropout, x_mask=None, sampling=False, suffix
                                                     truncate_gradient=options['encoder_truncate_gradient'],
                                                     profile=profile)[0]
 
-    #print("ctx shape = ", ctx.tag.test_value.shape)
-
     return x, ctx
 
 
@@ -1308,9 +1306,6 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
             probs.append(pp)
 
         logging.debug('%d samples computed' % (n_done))
-
-    print(costs_per_word)
-    raw_input()
 
     return numpy.array(probs), alignments_json, costs_per_word
 
