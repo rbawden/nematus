@@ -155,7 +155,6 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
     # choose to output per-word scores rather than per-sentence scores
     if per_word:
         scores = costs_per_word
-        print(scores)
 
     source_lines = []
     extra_source_lines = []
