@@ -99,13 +99,15 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
     # choose to output per-word scores rather than per-sentence scores
     if per_word:
+        print(scores)
         scores = costs_per_word
 
-    print(scores)
     print(len(scores), len(target_lines))
 
     for i, line in enumerate(target_lines):
         if per_word:
+            print(len(line))
+            print([s[i] for s in scores])
             score_str = ' '.join(map(str, [s[i] for s in scores][:len(line.split(" ")) + 1]))
         else:
             score_str = ' '.join(map(str, [s[i] for s in scores]))
