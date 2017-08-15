@@ -51,9 +51,9 @@ def load_scorer(model, option, alignweights=None):
     if alignweights:
         logging.debug("Save weight mode ON, alignment matrix will be saved.")
         if 'multisource_type' not in option or option['multisource_type'] is None:
-            outputs = [cost, opt_ret['dec_alphas'], opt_ret['cost_per_word']]
+            outputs = [cost, opt_ret['dec_alphas0'], opt_ret['cost_per_word']]
         else:
-            outputs = [cost, opt_ret['dec_alphas'], opt_ret['dec_alphas2'], opt_ret['cost_per_word']]
+            outputs = [cost, opt_ret['dec_alphas0'], opt_ret['dec_alphas1'], opt_ret['cost_per_word']]
         f_log_probs = theano.function(inps, outputs)
     else:
         f_log_probs = theano.function(inps, [cost, opt_ret['cost_per_word']])
@@ -70,14 +70,17 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
         # sample given an input sequence and obtain scores
         scores = []
         sent_alignments = []
+        costs_per_word = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
 
             # TODO: make multi ?
-            score, alignments, costs_per_word = pred_probs(f_log_probs, prepare_data, options[i], pairs,
+            score, alignments, cost_per_word = pred_probs(f_log_probs, prepare_data, options[i], pairs,
                                                   normalization_alpha=normalization_alpha, alignweights=alignweights)
+
             scores.append(score)
             sent_alignments.append(alignments)
+            costs_per_word.append(cost_per_word)
 
         return scores, sent_alignments, costs_per_word
 
@@ -97,18 +100,9 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
     # source_lines = source_file.readlines()
     target_lines = target_file.readlines()
 
-    # choose to output per-word scores rather than per-sentence scores
-    if per_word:
-        print(scores)
-        scores = costs_per_word
-
-    print(len(scores), len(target_lines))
-
     for i, line in enumerate(target_lines):
         if per_word:
-            print(len(line))
-            print([s[i] for s in scores])
-            score_str = ' '.join(map(str, [s[i] for s in scores][:len(line.split(" ")) + 1]))
+            score_str = ' '.join(map(str, [s for s in costs_per_word[0][i]][:len(line.split(" ")) + 1]))
         else:
             score_str = ' '.join(map(str, [s[i] for s in scores]))
         if verbose:
@@ -120,7 +114,7 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
         # writing out the alignments.
         temp_name = saveto.name + ".json"
         with tempfile.NamedTemporaryFile(prefix=temp_name) as align_OUT:
-            for line in alignments:
+            for line in alignments[0]:
                 align_OUT.write(line + "\n")
             # combining the actual source and target words.
             combine_source_target_text_1to1(source_file, target_file, saveto.name, align_OUT)
@@ -138,15 +132,17 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
         scores = []
         alignments = []
         aux_alignments = []
+        costs_per_word = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
-            score, all_alignments, costs_per_word = multi_pred_probs(f_log_probs, prepare_multi_data, options[i],
+            score, all_alignments, cost_per_word = multi_pred_probs(f_log_probs, prepare_multi_data, options[i],
                                                          pairs, normalization_alpha=normalization_alpha,
                                                          alignweights=alignweights)
             scores.append(score)
             if all_alignments != []:
                 alignments.append(all_alignments[0])
                 aux_alignments.append(all_alignments[1])
+            costs_per_word.append(cost_per_word)
 
         return scores, (alignments, aux_alignments), costs_per_word
 
@@ -172,14 +168,10 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
     target_file.seek(0)
     target_lines = target_file.readlines()
 
-    # choose to output per-word scores rather than per-sentence scores
-    if per_word:
-        scores = costs_per_word
-
     # print out scores for each translation
     for i, line in enumerate(target_lines):
         if per_word:
-            score_str = ' '.join(map(str, [s[i] for s in scores][:len(line.split(" ")) + 1]))
+            score_str = ' '.join(map(str, [s for s in costs_per_word[0][i]][:len(line.split(" ")) + 1]))
         else:
             score_str = ' '.join(map(str, [s[i] for s in scores]))
         if verbose:
@@ -188,7 +180,7 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
 
     # optional save weights mode.
     if alignweights:
-        for i, alignment in enumerate(alignments):
+        for i, alignment in enumerate(alignments[0]):
             # write out the alignments.
             temp_name = savetos[i].name + str(i) + ".json"
             with tempfile.NamedTemporaryFile(prefix=temp_name) as align_OUT:

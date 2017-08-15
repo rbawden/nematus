@@ -594,6 +594,7 @@ def build_model(tparams, options):
     y_flat = y.flatten()
     y_flat_idx = tensor.arange(y_flat.shape[0]) * options['n_words'] + y_flat
     cost = -tensor.log(probs.flatten()[y_flat_idx])
+
     cost = cost.reshape([y.shape[0], y.shape[1]])
     # per word cost
     opt_ret['cost_per_word'] = cost * y_mask
@@ -689,6 +690,7 @@ def build_multisource_model(tparams, options):
     y_flat = y.flatten()
     y_flat_idx = tensor.arange(y_flat.shape[0]) * options['n_words'] + y_flat
     cost = -tensor.log(probs.flatten()[y_flat_idx])
+
     cost = cost.reshape([y.shape[0], y.shape[1]])
     # per word cost
     opt_ret['cost_per_word'] = cost * y_mask
@@ -1269,6 +1271,7 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
     n_done = 0
 
     alignments_json = []
+    costs_per_word = []
 
     for xs, y in iterator:
         x = xs[0]
@@ -1288,11 +1291,13 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
 
         ### in optional save weights mode.
         if alignweights:
-            pprobs, attention, costs_per_word = f_log_probs(x, x_mask, y, y_mask)
+            pprobs, attention, cost_per_word = f_log_probs(x, x_mask, y, y_mask)
             for jdata in get_alignments(attention, x_mask, y_mask):
                 alignments_json.append(jdata)
         else:
-            pprobs, costs_per_word = f_log_probs(x, x_mask, y, y_mask)
+            pprobs, cost_per_word = f_log_probs(x, x_mask, y, y_mask)
+
+        costs_per_word.extend(cost_per_word.T)
 
         # normalize scores according to output length
         if normalization_alpha:
@@ -1303,6 +1308,9 @@ def pred_probs(f_log_probs, prepare_data, options, iterator, verbose=True, norma
             probs.append(pp)
 
         logging.debug('%d samples computed' % (n_done))
+
+    print(costs_per_word)
+    raw_input()
 
     return numpy.array(probs), alignments_json, costs_per_word
 
@@ -1316,6 +1324,7 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
 
     # list of alignments for each input source
     alignments_json = []
+    costs_per_word = []
 
     for inputs, y in iterator:
 
@@ -1336,14 +1345,16 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
 
         if alignweights:
-            pprobs, attentions, costs_per_word = f_log_probs(*inps)
-            for i, attention in enumerate(attentions):
+            pprobs, attention1, attention2, cost_per_word = f_log_probs(*inps)
+            for i, attention in enumerate([attention1, attention2]):
                 alignment_json = []
                 for jdata in get_alignments(attention, x_masks[i], y_mask):
                     alignment_json.append(jdata)
                 alignments_json.append(alignment_json)
         else:
-            pprobs, costs_per_word = f_log_probs(*inps)
+            pprobs, cost_per_word = f_log_probs(*inps)
+
+        costs_per_word.extend(cost_per_word.T)
 
         # normalize scores according to output length
         if normalization_alpha:
@@ -1677,7 +1688,7 @@ def train(dim_word=512,  # word vector dimensionality
 
     # before any regularizer
     logging.info('Building f_log_probs...')
-    f_log_probs = theano.function(inps, [cost, opt_ret['cost_per_word']], profile=profile)
+    f_log_probs = theano.function(inps, (cost, opt_ret['cost_per_word']), profile=profile)
     logging.info('Done')
 
     if model_options['objective'] == 'CE':
