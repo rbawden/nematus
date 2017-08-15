@@ -90,20 +90,25 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
     scores, alignments, costs_per_word = _score(pairs, alignweights)
 
-    # choose to output per-word scores rather than per-sentence scores
-    if per_word:
-        scores = costs_per_word
+
 
     source_file.seek(0)
     target_file.seek(0)
     # source_lines = source_file.readlines()
     target_lines = target_file.readlines()
 
+    # choose to output per-word scores rather than per-sentence scores
+    if per_word:
+        scores = costs_per_word
+
     print(scores)
     print(len(scores), len(target_lines))
 
     for i, line in enumerate(target_lines):
-        score_str = ' '.join(map(str, [s[i] for s in scores]))
+        if per_word:
+            score_str = ' '.join(map(str, [s[i] for s in scores][:len(line.split(" ")) + 1]))
+        else:
+            score_str = ' '.join(map(str, [s[i] for s in scores]))
         if verbose:
             saveto.write('{0} '.format(line.strip()))
         saveto.write('{0}\n'.format(score_str))
@@ -155,10 +160,6 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
 
     scores, alignments, costs_per_word = _score(sents, alignweights)
 
-    # choose to output per-word scores rather than per-sentence scores
-    if per_word:
-        scores = costs_per_word
-
     source_lines = []
     extra_source_lines = []
 
@@ -169,12 +170,16 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
     target_file.seek(0)
     target_lines = target_file.readlines()
 
-    print(scores)
-    print(len(scores), len(target_lines))
+    # choose to output per-word scores rather than per-sentence scores
+    if per_word:
+        scores = costs_per_word
 
     # print out scores for each translation
     for i, line in enumerate(target_lines):
-        score_str = ' '.join(map(str, [s[i] for s in scores]))
+        if per_word:
+            score_str = ' '.join(map(str, [s[i] for s in scores][:len(line.split(" ")) + 1]))
+        else:
+            score_str = ' '.join(map(str, [s[i] for s in scores]))
         if verbose:
             savetos[0].write('{0} '.format(line.strip()))
         savetos[0].write('{0}\n'.format(score_str))
