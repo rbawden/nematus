@@ -139,6 +139,10 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
                                                          pairs, normalization_alpha=normalization_alpha,
                                                          alignweights=alignweights)
             scores.append(score)
+
+            print(all_alignments)
+            raw_input()
+
             if all_alignments != []:
                 alignments.append(all_alignments[0])
                 aux_alignments.append(all_alignments[1])
@@ -156,7 +160,7 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
                          extra_sources=[ss.name for ss in extra_sources])
     # TODO: sorting by length could be more efficient, but we'd want to resort after
 
-    scores, alignments, costs_per_word = _score(sents, alignweights)
+    scores, all_alignments, costs_per_word = _score(sents, alignweights)
 
     source_lines = []
     extra_source_lines = []
@@ -180,11 +184,13 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
 
     # optional save weights mode.
     if alignweights:
-        for i, alignment in enumerate(alignments[0]):
+        for i, alignments in enumerate(all_alignments):
             # write out the alignments.
             temp_name = savetos[i].name + str(i) + ".json"
             with tempfile.NamedTemporaryFile(prefix=temp_name) as align_OUT:
-                for line in alignment:
+                for line in alignments:
+                    print(line)
+                    raw_input()
                     align_OUT.write(line + "\n")
                 # combine the actual source and target words.
                 combine_source_target_text_1to1(source_files[i], target_file, savetos[i].name, align_OUT, suffix=str(i))
