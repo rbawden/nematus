@@ -2366,7 +2366,7 @@ if __name__ == '__main__':
                        help="auxiliary parallel training corpus (source)", default=[])
     multi.add_argument('--extra_source_dicts', type=str, metavar='PATH', nargs="+", default=[],
                        help="auxiliary network vocabularies (one per source factor) in order of extra inputs")
-    multi.add_argument('--extra_source_dicts_nums', type=str, metavar='INT', nargs="+", default=[],
+    multi.add_argument('--extra_source_dicts_nums', type=int, metavar='INT', nargs="+", default=[],
                        help="number of auxiliary network vocabularies per extra input (in the same order")
     multi.add_argument('--extra_valid_sources', type=str, metavar='PATH', default=[], nargs='+',
                        help="auxiliary parallel validation corpora (source)")
