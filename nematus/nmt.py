@@ -1534,12 +1534,12 @@ def train(dim_word=512,  # word vector dimensionality
         worddicts_r.append(worddicts_r1)
 
     # vocabulary sizes for each of the input sources (words)
-    all_n_words_src = [len(wd[0]) for w, wd in enumerate(worddicts)]
+    all_n_words_src = [max(wd[0].values())+1 for w, wd in enumerate(worddicts)]
     model_options['n_words_src'] = all_n_words_src
 
     # vocabulary size for the target
     if n_words is None:
-        n_words = len(worddicts[0][-1]) # TODO: change this index - clean up
+        n_words = max(worddicts[0][-1].values())+1
         model_options['n_words'] = n_words
 
     if tie_encoder_decoder_embeddings:
