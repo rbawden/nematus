@@ -1348,7 +1348,7 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
                 alignments_json.append(alignment_json)
                 print(len(alignment_json))
 
-                raw_input()
+                #raw_input()
         else:
             pprobs, cost_per_word = f_log_probs(*inps)
 

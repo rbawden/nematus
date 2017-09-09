@@ -140,8 +140,8 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
                                                          alignweights=alignweights)
             scores.append(score)
 
-            print(all_alignments)
-            raw_input()
+            #print(all_alignments)
+            #raw_input()
 
             if all_alignments != []:
                 alignments.append(all_alignments[0])
