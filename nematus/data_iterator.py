@@ -61,7 +61,7 @@ class TextIterator:
 
         # append extra source dicts. If none are indicated, reuse main source dictionaries
         assert len(extra_sources) == len(extra_source_dicts_nums) or len(extra_source_dicts_nums) == 0
-        assert sum(extra_source_dicts_nums) == len(extra_source_dicts)
+        assert sum([int(x) for x in extra_source_dicts_nums]) == len(extra_source_dicts)
         j = 0
         for i in range(len(extra_sources)):
             extra_dicts = []
