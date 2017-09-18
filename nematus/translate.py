@@ -594,6 +594,7 @@ class Translator(object):
                     if i==0:
                         current_aux = "<START>"
                     else:
+                        os.sys.stderr.write("Using previous translation...")
                         current_aux = translations[i-1]
                 else:
                     current_aux = None
