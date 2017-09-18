@@ -59,6 +59,7 @@ class TranslationSettings(object):
         self.get_search_graph = False
         self.search_graph_filename = None
         self.multisource = False
+        self.predicted_trg = False
         if parsed_console_arguments:
             self.update_from(parsed_console_arguments)
 
@@ -96,6 +97,8 @@ class TranslationSettings(object):
             self.multisource = True
         else:
             self.multisource = False
+
+        self.predicted_trg = args.predicted_trg
 
 
 class ServerSettings(object):

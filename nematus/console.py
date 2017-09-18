@@ -86,8 +86,10 @@ class ConsoleInterfaceDefault(ConsoleInterface):
                                   help="Output file for search graph rendered as PNG image")
         # added multisource arguments
         self._parser.add_argument('--aux_input', type=argparse.FileType('r'),
-                                  default=None, metavar='PATH',
-                                  help="Auxiliary input file")
+                                  default=None, metavar='PATH', help="Auxiliary input file")
+        self._parser.add_argument('--predicted_trg', type=bool, default=False, action='store_true',
+                                  help='Use previous predicted target translation as additional input instead of auxiliary'
+                                       'input provided. Overrides any additional input specified on command line.')
 
     def get_translation_settings(self):
         """

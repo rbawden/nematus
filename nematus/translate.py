@@ -568,6 +568,9 @@ class Translator(object):
 
     ### EXPOSED TRANSLATION FUNCTIONS ###
 
+    # modified to use predicted translations when using previous target sentence as additional input
+
+
     def translate(self, source_segments, translation_settings, aux_source_segments=None):
         """
         Returns the translation of @param source_segments (and @param aux_source_segments if multi-source)
@@ -584,11 +587,24 @@ class Translator(object):
         translations = []
         for i, trans in enumerate(self._retrieve_jobs(n_samples, translation_settings.request_id)):
 
-            # handle potential multi-source input
-            if aux_source_segments:
-                current_aux = aux_source_sentences[i]
+            # previous target sentence (take predicted)
+            if translation_settings.predicted_trg:
+                # handle potential multi-source input
+                if aux_source_segments:
+                    if i==0:
+                        current_aux = "<START>"
+                    else:
+                        current_aux = translations[i-1]
+                else:
+                    current_aux = None
+
+            # just use the auxiliary input provided
             else:
-                current_aux = None
+                # handle potential multi-source input
+                if aux_source_segments:
+                    current_aux = aux_source_sentences[i]
+                else:
+                    current_aux = None
 
             samples, scores, word_probs, alignments, hyp_graph = trans
             # n-best list
