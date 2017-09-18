@@ -584,6 +584,9 @@ class Translator(object):
         else:
             n_samples, source_sentences = self._send_jobs(source_segments, translation_settings)
 
+
+        os.sys.stderr.write(str(translation_settings.predicted_trg)+"\n")
+
         translations = []
         for i, trans in enumerate(self._retrieve_jobs(n_samples, translation_settings.request_id)):
 
