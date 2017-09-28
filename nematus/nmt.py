@@ -770,7 +770,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     logging.info('Building f_next...')
 
     if options['multisource_type'] == 'init-decoder':
-        inps = [y] + ctxs[0] + [init_state]
+        inps = [y, ctxs[0], init_state]
     else:
         inps = [y] + ctxs + [init_state]
     outs = [next_probs, next_sample, ret_state]
