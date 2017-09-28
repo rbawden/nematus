@@ -479,7 +479,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
             else:
                 input_ = next_state
 
-            if options['multisource_type'] is not None:
+            if options['multisource_type'] not in (None, 'init-decoder'):
                 out_state = get_layer_constr('bi_gru_cond')(tparams, input_, options, dropout,
                                                                prefix=pp('decoder', level),
                                                                mask=y_mask,
@@ -665,10 +665,10 @@ def build_multisource_model(tparams, options):
 
     # initialise decoder state with auxiliary context
     elif options['multisource_type'] == 'init-decoder':
-        ctx_mean_combo = ctx_means[1]
+        ctx_mean_combo = numpy.sum(ctx_means)/len(ctx_means)#ctx_means[1]
     else:
         assert len(ctx_means) == 0, 'you must specify a multi-source type compatible with build_multisource_model()'
-        ctx_mean_combo = ctx_means[0]
+        #ctx_mean_combo = ctx_means[0]
 
     # initial decoder state
     init_state = get_layer_constr('ff')(tparams, ctx_mean_combo, options, dropout,
@@ -727,6 +727,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
 
     # combine the contexts for initialisation by mean of context
     if options['multisource_type'] == 'init-decoder':
+        logging.info("using aux context to initialise decoder")
         ctx_mean = ctx_means[1]
     else:
         ctx_mean = sum(ctx_means)/len(ctx_means)
@@ -996,7 +997,7 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
 # this function iteratively calls f_init and f_next functions.
 def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                stochastic=True, argmax=False, return_alignment=False, suppress_unk=False,
-               return_hyp_graph=False, extra_xs=None):
+               return_hyp_graph=False, extra_xs=None, init_decoder=False):
     # k is the beam size we have
     if k > 1 and argmax:
         assert not stochastic, \
@@ -1055,7 +1056,8 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     # multi-source (2 attention mechanisms)
     if aux_x is not None:
         ctx1 = [None] * num_models
-        dec_alphas1 = [None] * num_models  # for multi-source
+        if not init_decoder:
+            dec_alphas1 = [None] * num_models  # for multi-source
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
@@ -2032,6 +2034,11 @@ def train(dim_word=512,  # word vector dimensionality
                         # remove padding
                         extra_x_current[i] = extra_x_current[i][:, :x_masks[i+1].astype('int64')[:, jj].sum(), :]
 
+                    if multisource_type == 'init_decoder':
+                        using_init = True
+                    else:
+                        using_init = False
+
                     sample, score, sample_word_probs, alignment, hyp_graph = gen_sample([f_init], [f_next],
                                                                                         x_current,
                                                                                         trng=trng, k=1,
@@ -2040,7 +2047,8 @@ def train(dim_word=512,  # word vector dimensionality
                                                                                         argmax=False,
                                                                                         suppress_unk=False,
                                                                                         return_hyp_graph=False,
-                                                                                        extra_xs=extra_x_current)
+                                                                                        extra_xs=extra_x_current,
+                                                                                        init_decoder=using_init)
 
                     # TODO: only accepting 2 inputs at present
                     print '\nSource ', jj, ': ',
