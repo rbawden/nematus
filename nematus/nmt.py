@@ -1702,9 +1702,6 @@ def train(dim_word=512,  # word vector dimensionality
         # TODO: multisource
         f_sampler = build_full_sampler(tparams, model_options, use_noise, trng)
 
-
-    print(inps)
-
     # before any regularizer
     logging.info('Building f_log_probs...')
     f_log_probs = theano.function(inps, (cost, opt_ret['cost_per_word']), profile=profile)
