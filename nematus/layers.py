@@ -751,7 +751,7 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     return rval
 
 
-Attention = namedtuple('Attention', 'ctx_ pctx__ alpha')
+#Attention = namedtuple('Attention', 'ctx_ pctx__ alpha')
 
 
 # Conditional GRU layer for multi-source inputs
@@ -881,7 +881,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         #for i in range(2):
         # suffix for parameters
 
-
         # FIRST ONE
         suff = str(0)
         i = 0
@@ -907,8 +906,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             alphas[i] = alphas[i] * context_mask
         alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
         ctxs_.append((cc_ * alphas[i][:, :, None]).sum(0))  # current context
-
-
 
         # AUXILIARY ONE
 
@@ -991,7 +988,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             # apply to contexts TODO just testing
             ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
-
 
         elif options['multisource_type'] == "att-hier":
 
