@@ -414,6 +414,11 @@ class Translator(object):
         seq = input_item.seq
         aux_seq = input_item.aux_seq
 
+        if self._options['multisource_type'] == 'init-decoder':
+            init_decoder = True
+        else:
+            init_decoder = False
+
         return gen_sample(fs_init, fs_next,
                           numpy.array(seq).T.reshape([len(seq[0]), len(seq), 1]),
                           trng=trng, k=k, maxlen=200,
@@ -421,7 +426,8 @@ class Translator(object):
                           return_alignment=return_alignment,
                           suppress_unk=suppress_unk,
                           return_hyp_graph=return_hyp_graph,
-                          extra_xs=[numpy.array(aux_seq).T.reshape([len(aux_seq[0]), len(aux_seq), 1])])
+                          extra_xs=[numpy.array(aux_seq).T.reshape([len(aux_seq[0]), len(aux_seq), 1])],
+                          init_decoder=init_decoder)
 
     def _sample(self, input_item, trng, fs_init, fs_next, gen_sample):
         """
