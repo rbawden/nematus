@@ -476,7 +476,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
     # initialise parameters for each input source (multi-source)
     for i in range(num_encoders):
-        if num_encoders > 1:
+        if num_encoders > 1 and options['multisource_type'] != "init-decoder":
             suff = str(i)
         else:
             suff = ''
@@ -839,11 +839,16 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     # ----------- beginning of _step_slice -----------
     # step function (to be used by scan)
     # TODO: cannot pass a list here, so only 2 inputs are possible for now
-    def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctx_, extra_pctx_, cc_, extra_cc_,rec_dropout,
+    def _step_slice(m_, x_, xx_, h_, ctx_, alpha_, extra_alpha_, pctx_, extra_pctx_, cc_, extra_cc_, rec_dropout,
                                                                                     ctx_dropout, extra_ctx_dropout):
         if options['layer_normalisation']:
             x_ = layer_norm(x_, tparams[pp(prefix, 'W_lnb')], tparams[pp(prefix, 'W_lns')])
             xx_ = layer_norm(xx_, tparams[pp(prefix, 'Wx_lnb')], tparams[pp(prefix, 'Wx_lns')])
+
+
+        # initialise decoder with average of extra input context (if asked)
+        #if options['multisource_type'] == "init-decoder":
+        #    h_ = theano.tensor.mean(extra_cc_, axis=0)#/extra_cc_.shape()[0]
 
         # ------------------------ GRU 1 ------------------------
         # compute of r'_j and z'_j (reset and update activations)
@@ -869,16 +874,18 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         # intermediate representation s'_j (here = h1) (using the update gate)
         h1 = u1 * h_ + (1. - u1) * h1
         h1 = m_[:, None] * h1 + (1. - m_)[:, None] * h_
-        pstates_, pctxs__, alphas, ctxs_ = [], [], [], []
 
+        pstates_, pctxs__, alphas, ctxs_ = [], [], [], []
         # -------------- attention mechanism(s) --------------
         # fixed at 2 for now...
         #for i in range(2):
         # suffix for parameters
-        suff = str(0)
-        i=0
+
 
         # FIRST ONE
+        suff = str(0)
+        i = 0
+
         # calculate e_ij (here pctx__)
         pstates_.append(tensor.dot(h1 * rec_dropout[2+i], wn(pp(prefix, 'W_comb_att' + suff))))
         if options['layer_normalisation']:
@@ -901,9 +908,13 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
         ctxs_.append((cc_ * alphas[i][:, :, None]).sum(0))  # current context
 
+
+
         # AUXILIARY ONE
+
+        # only calculate if using attention on multiple input
         suff = str(1)
-        i=1
+        i = 1
         # calculate e_ij (here pctx__)
         pstates_.append(tensor.dot(h1 * rec_dropout[2 + i], wn(pp(prefix, 'W_comb_att' + suff))))
         if options['layer_normalisation']:
@@ -913,21 +924,27 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         # pctx__ += xc_
         pctxs__[i] = tensor.tanh(pctxs__[i])
 
-        # multiply by weight vector
-        alphas.append(tensor.dot(pctxs__[i] * extra_ctx_dropout[1], wn(pp(prefix, 'U_att' + suff))) +
-                      tparams[pp(prefix, 'c_tt' + suff)])
+        # only calculate attention if doing real multi-source (not just initialisation)
+        if options['multisource_type'] in ['att-concat', 'att-hier', 'att-gate']:
+            # multiply by weight vector
+            alphas.append(tensor.dot(pctxs__[i] * extra_ctx_dropout[1], wn(pp(prefix, 'U_att' + suff))) +
+                          tparams[pp(prefix, 'c_tt' + suff)])
 
-        alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
+            alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
-        # normalise
-        alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
-        if extra_context_mask:
-            alphas[i] = alphas[i] * extra_context_mask
-        alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
-        ctxs_.append((extra_cc_ * alphas[i][:, :, None]).sum(0))  # current context
+            # normalise
+            alphas[i] = tensor.exp(alphas[i] - alphas[i].max(0, keepdims=True))
+            if extra_context_mask:
+                alphas[i] = alphas[i] * extra_context_mask
+            alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
+            ctxs_.append((extra_cc_ * alphas[i][:, :, None]).sum(0))  # current context
 
-        ctxs_[0].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
-        ctxs_[1].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+            ctxs_[0].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+            ctxs_[1].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
+        #else:
+        #    # need to define anyway (dummy variable)
+        #    alphas.append(tensor.constant(numpy.zeros((1,1)).astype(floatX)))
+
 
         # -------------- combine the resulting contexts --------------
         # concatenate the multiple context vectors and project to original dimensions
@@ -975,24 +992,6 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             # apply to contexts TODO just testing
             ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
 
-        elif options['multisource_type'] == "att-gate2":
-
-            # linear combination of (i) y_i-1 (previous embedded target word),
-            # (ii) s_i-1 (previous decoder state), (iii) ctx_ (main context vector) and
-            # (iv) aux_ctx_ (auxiliary context vector)
-
-            ym1_ = xxx_
-            sm1_ = tensor.dot(h1 * rec_dropout[2], wn(pp(prefix, 'W_att-gate-sm1')))
-            main_pctx_ = tensor.dot(ctxs_[0] * ctx_dropout[4], wn(pp(prefix, 'W_att-gate-ctx1')))
-            main_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
-            aux_pctx_ = tensor.dot(ctxs_[1] * extra_ctx_dropout[4], wn(pp(prefix, 'W_att-gate-ctx2')))
-            aux_pctx_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
-
-            g_ = sm1_ + ym1_ + main_pctx_ + aux_pctx_ + tparams[pp(prefix, 'b_att-gate')]
-            g_.tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
-            g_ = tanh(g_)
-            ctx_ = g_ * ctxs_[1] + (1. - g_) * ctxs_[0]
-
 
         elif options['multisource_type'] == "att-hier":
 
@@ -1016,7 +1015,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             ctx_ = (ctxs_ * hier_alpha[:, :, None]).sum(0) # current context
 
         else:
-            ctx_ = ctx_
+            ctx_ = ctxs_[0]
 
         # ------------------------ GRU 2 ------------------------
         h2_prev = h1
@@ -1031,9 +1030,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                                      tparams[pp(prefix, 'U_nl%s_lns' % suffix)])
             if i == 0:
                 if options['multisource_type'] == 'att-concat':
-                    #print(len(ctx_dropouts[0]))
-                    #ctx_dropout = concatenate([ctx_dropouts[0][2], ctx_dropouts[0][2]], axis=1)
-                    #print(ctx_dropouts[0][2].shape)
+
                     # TODO: put dropout back somewhere
                     ctx1_ = tensor.dot(ctx_ * ctx_dropout[2],
                                        wn(pp(prefix, 'Wc' + suffix)))  # dropout mask is shared over mini-steps

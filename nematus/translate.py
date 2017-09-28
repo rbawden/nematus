@@ -490,6 +490,8 @@ class Translator(object):
         """
         source_sentences = []
         source_sentences2 = []
+
+        translations = []
         for idx, (line, line2) in enumerate(zip(input_, aux_input_)):
             if translation_settings.char_level:
                 words = list(line.decode('utf-8').strip())
@@ -565,6 +567,14 @@ class Translator(object):
 
         # then remove all entries with this request ID from the dictionary
         del self._retrieved_translations[request_id]
+
+
+
+    def translate_no_queue(self, input_, aux_input_, translation_settings):
+
+        1
+
+
 
     ### EXPOSED TRANSLATION FUNCTIONS ###
 

@@ -416,7 +416,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
         emb = emb_shifted
 
     # decoder - pass through the decoder conditional gru with attention
-    if options['multisource_type'] is not None:
+    if options['multisource_type'] not in (None, 'init-decoder'):
         proj = get_layer_constr('bi_gru_cond')(tparams, emb, options, dropout,
                                                   prefix='decoder',
                                                   mask=y_mask, context=ctx,
@@ -434,6 +434,9 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                                   extra_context_mask=extra_x_masks[0],
                                                   extra_pctx_=extra_pctxs_[0])
     else:
+
+        #logging.info("Building a single-source model")
+
         proj = get_layer_constr(options['decoder'])(tparams, emb, options, dropout,
                                                     prefix='decoder',
                                                     mask=y_mask, context=ctx,
@@ -455,7 +458,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
 
     # weights (alignment matrix)
     opt_ret['dec_alphas0'] = proj[2]
-    if options['multisource_type'] is not None:
+    if options['multisource_type'] not in (None, 'init-decoder'):
         opt_ret['dec_alphas1'] = proj[3]  # auxiliary
 
     # we return state of each layer
@@ -656,10 +659,13 @@ def build_multisource_model(tparams, options):
     # ------------ DECODER ------------
     # initial decoder state
     # different ways of combining the two attention mechanisms
-    if options['multisource_type'] in ('att-concat', 'att-gate', 'att-hier', 'att-gate2'):
+    if options['multisource_type'] in ('att-concat', 'att-gate', 'att-hier'):
         # mean of contexts
         ctx_mean_combo = numpy.sum(ctx_means)/len(ctx_means)
 
+    # initialise decoder state with auxiliary context
+    elif options['multisource_type'] == 'init-decoder':
+        ctx_mean_combo = ctx_means[1]
     else:
         assert len(ctx_means) == 0, 'you must specify a multi-source type compatible with build_multisource_model()'
         ctx_mean_combo = ctx_means[0]
@@ -767,7 +773,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
             if 'dec_alphas' + str(i) in opt_ret:
                 outs.append(opt_ret['dec_alphas' + str(i)])
 
-    f_next = theano.function(inps, outs, name='f_next', profile=profile)
+    f_next = theano.function(inps, outs, name='f_next', profile=profile, on_unused_input='warn')
     logging.info('Done')
 
     return f_init, f_next
@@ -2370,7 +2376,7 @@ if __name__ == '__main__':
                        help="number of auxiliary network vocabularies per extra input (in the same order")
     multi.add_argument('--extra_valid_sources', type=str, metavar='PATH', default=[], nargs='+',
                        help="auxiliary parallel validation corpora (source)")
-    multi.add_argument('--multisource_type', choices=("att-concat", "att-gate","att-gate2", "att-hier"), default=None)
+    multi.add_argument('--multisource_type', choices=("att-concat", "att-gate","att-gate2", "att-hier", "init-decoder"), default=None)
     multi.add_argument('--extra_n_words_src', type=int, nargs="+", default=[], metavar='INT',
                          help="extra source vocabulary size (default: %(default)s)")
     multi.add_argument('--debugm', default=False, action='store_true')
