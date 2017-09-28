@@ -715,7 +715,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
     ctxs = [[]] * num_encoders
     ctx_means = [[]] * num_encoders
 
-    # build each of the encoders
+    # build each of the encoders (first is main one and following ones are auxiliary ones)
     for i in range(num_encoders):
         suff = str(i)
 
@@ -1087,7 +1087,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
 
             # multi-source
-            if aux_x is not None:
+            if aux_x is not None and not init_decoder:
                 inps = [next_w, ctx, aux_ctx, next_state[i]]
             else:
                 inps = [next_w, ctx, next_state[i]]
@@ -1683,9 +1683,11 @@ def train(dim_word=512,  # word vector dimensionality
     if multisource_type is not None:
         trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
         inps = [xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask]
+
     else:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
         inps = [x, x_mask, y, y_mask]
+
 
     # ---------------- build model ----------------
     if validFreq or sampleFreq:
@@ -2034,7 +2036,7 @@ def train(dim_word=512,  # word vector dimensionality
                         # remove padding
                         extra_x_current[i] = extra_x_current[i][:, :x_masks[i+1].astype('int64')[:, jj].sum(), :]
 
-                    if multisource_type == 'init_decoder':
+                    if multisource_type == 'init-decoder':
                         using_init = True
                     else:
                         using_init = False
