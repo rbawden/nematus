@@ -726,7 +726,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
         # ctx_mean = concatenate([proj[0][-1],projr[0][-1]], axis=proj[0].ndim-2)
 
     # combine the contexts for initialisation by mean of context
-    if options['multisource_type'] == 'init_decoder':
+    if options['multisource_type'] == 'init-decoder':
         ctx_mean = ctx_means[1]
     else:
         ctx_mean = sum(ctx_means)/len(ctx_means)
@@ -769,7 +769,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
 
     logging.info('Building f_next...')
 
-    if options['multisource_type'] == 'init_decoder':
+    if options['multisource_type'] == 'init-decoder':
         inps = [y] + ctxs[0] + [init_state]
     else:
         inps = [y] + ctxs + [init_state]
