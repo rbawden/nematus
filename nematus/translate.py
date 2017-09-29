@@ -414,7 +414,7 @@ class Translator(object):
         seq = input_item.seq
         aux_seq = input_item.aux_seq
 
-        if self._options['multisource_type'] == 'init-decoder':
+        if self._options[0]['multisource_type'] == 'init-decoder':
             init_decoder = True
         else:
             init_decoder = False
