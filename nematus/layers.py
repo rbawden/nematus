@@ -957,7 +957,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                 ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
                                   tparams[pp(prefix, 'W_projcomb_att_lns')])
             # non-linearity as in Zoph and Knight
-            #ctx_ = tanh(ctx_)
+            ctx_ = tanh(ctx_)
 
         # apply a context gate between the two different contexts
         elif options['multisource_type'] == "att-gate":
