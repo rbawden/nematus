@@ -1292,7 +1292,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     word_probs.append(new_word_probs[idx])
                     if return_alignment:
                         for inputnum in range(len(xs)):
-                            hyp_alignment[inputnum].append(new_hyp_alignment[inputnum][idx])
+                            hyp_alignment[inputnum] = new_hyp_alignment[inputnum][idx]
                         #if aux_x is not None:
                         #    aux_hyp_alignment.append(aux_new_hyp_alignment[idx])
             hyp_scores = numpy.array(hyp_scores)
