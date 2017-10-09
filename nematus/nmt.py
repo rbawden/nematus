@@ -1249,9 +1249,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     # get history of attention weights for the current hypothesis
 
                     for inputnum in range(len(xs)):
-                        new_hyp_alignment[inputnum][idx] = copy.copy(hyp_alignment[inputum][ti])
-                    # extend the history with current attention weights
-                    #new_hyp_alignment[idx].append(mean_alignment[ti])
+                        new_hyp_alignment[inputnum][idx] = copy.copy(hyp_alignment[inputnum][ti])
+                        # extend the history with current attention weights
+                        new_hyp_alignment[inputnum][idx].append(mean_alignment[inputnum][ti])
                     #if aux_x is not None:
                     #    aux_new_hyp_alignment[idx] = copy.copy(aux_hyp_alignment[ti])
                     #    aux_new_hyp_alignment[idx].append(aux_mean_alignment[ti])
@@ -1292,7 +1292,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     word_probs.append(new_word_probs[idx])
                     if return_alignment:
                         for inputnum in range(len(xs)):
-                            hyp_alignment[inputnum] = new_hyp_alignment[inputnum][idx]
+                            hyp_alignment[inputnum].append(new_hyp_alignment[inputnum][idx])
                         #if aux_x is not None:
                         #    aux_hyp_alignment.append(aux_new_hyp_alignment[idx])
             hyp_scores = numpy.array(hyp_scores)
@@ -1317,7 +1317,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             if return_alignment:
                 for inputnum in range(len(xs)):
                     alignment[inputnum].append(hyp_alignment[inputnum][idx])
-                    print len(alignment[inputnum])
+                    #print len(alignment[inputnum])
 
                 #if aux_x is not None:
                 #    aux_alignment.append(aux_hyp_alignment[idx])
