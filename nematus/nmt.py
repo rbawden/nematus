@@ -1329,7 +1329,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     if not return_alignment:
         alignments = []
         for _ in xs:
-            alignments.append([[None for i in range(len(sample))]])
+            alignments.append([None for i in range(len(sample))])
         #if aux_x is not None:
         #    alignments.append([None for _ in range(len(sample))])
 
