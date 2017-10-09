@@ -498,7 +498,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
         U_att = norm_weight(dimctx[i], 1)
         params[pp(prefix, 'U_att' + suff)] = U_att
         c_att = numpy.zeros((1,)).astype(floatX)
-        params[pp(prefix, 'c_att' + suff)] = c_att
+        params[pp(prefix, 'c_tt' + suff)] = c_att
 
         # only initialise these once (and no suffix)
         if options['layer_normalisation']:
@@ -558,7 +558,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     elif options['multisource_type'] == 'att-hier':
         params[pp(prefix, 'U_att-hier')] = norm_weight(dimctx[i], 1)
 
-        params[pp(prefix, 'c_att-hier')] = numpy.zeros((1,)).astype(floatX)
+        params[pp(prefix, 'c_tt-hier')] = numpy.zeros((1,)).astype(floatX)
 
     return params
 
@@ -668,7 +668,7 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         pctx__ = pctx_ + pstate_[None, :, :]
         # pctx__ += xc_
         pctx__ = tensor.tanh(pctx__)
-        alpha = tensor.dot(pctx__ * ctx_dropout[1], wn(pp(prefix, 'U_att'))) + tparams[pp(prefix, 'c_att')]
+        alpha = tensor.dot(pctx__ * ctx_dropout[1], wn(pp(prefix, 'U_att'))) + tparams[pp(prefix, 'c_tt')]
         alpha = alpha.reshape([alpha.shape[0], alpha.shape[1]])
         alpha = tensor.exp(alpha - alpha.max(0, keepdims=True))
         if context_mask:
@@ -897,7 +897,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         # multiply by weight vector
         alphas.append(tensor.dot(pctxs__[i] * ctx_dropout[1], wn(pp(prefix, 'U_att' + suff))) +
-                      tparams[pp(prefix, 'c_att' + suff)])
+                      tparams[pp(prefix, 'c_tt' + suff)])
 
         alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
@@ -926,7 +926,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         if options['multisource_type'] in ['att-concat', 'att-hier', 'att-gate']:
             # multiply by weight vector
             alphas.append(tensor.dot(pctxs__[i] * extra_ctx_dropout[1], wn(pp(prefix, 'U_att' + suff))) +
-                          tparams[pp(prefix, 'c_att' + suff)])
+                          tparams[pp(prefix, 'c_tt' + suff)])
 
             alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
@@ -1001,7 +1001,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             #stacked_dropout =
 
             # TODO: add ctx dropout
-            hier_alpha = tensor.dot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_att-hier')]
+            hier_alpha = tensor.dot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
             hier_alpha.tag.test_value = numpy.ones(shape=(2, 10, 1)).astype(floatX)
             hier_alpha = hier_alpha.reshape([hier_alpha.shape[0], hier_alpha.shape[1]])
             hier_alpha= tensor.exp(hier_alpha - hier_alpha.max(0, keepdims=True))
@@ -1173,7 +1173,7 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     ctx_dropout = []
     ctx_dropout.append(dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=5))
     if pctx_ is None:
-        pctx_ = tensor.dot(context * ctx_dropout[0][0], wn(pp(prefix, 'Wc_att' + str(0)))) + \
+        pctx_ = tensor.dot(context * ctx_dropout[0][0], wn(pp(prefix, 'Wc_tt' + str(0)))) + \
                     tparams[pp(prefix, 'b_att' + str(0))]
     if options['layer_normalisation']:
         pctx_ = layer_norm(pctx_, tparams[pp(prefix, 'Wc_att_lnb' +str(0))],
