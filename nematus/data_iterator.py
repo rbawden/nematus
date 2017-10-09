@@ -63,11 +63,12 @@ class TextIterator:
         assert len(extra_sources) == len(extra_source_dicts_nums) or len(extra_source_dicts_nums) == 0
         assert sum([int(x) for x in extra_source_dicts_nums]) == len(extra_source_dicts)
         j = 0
+
         for i in range(len(extra_sources)):
             extra_dicts = []
             # if number of dictionaries are specified
             if len(extra_source_dicts_nums) > i:
-                for extra_dict in extra_source_dicts[j: j + extra_source_dicts_nums[i]]:
+                for extra_dict in extra_source_dicts[i]:
                     extra_dicts.append(load_dict(extra_dict))
                 j += extra_source_dicts_nums[i]
             # otherwise just reuse main source dictionaries
@@ -184,7 +185,6 @@ class TextIterator:
         try:
             # actual work here
             while True:
-
                 # read from source file(s) and map to word index
                 try:
                     ss = [sb.pop() for sb in self.all_source_buffers]

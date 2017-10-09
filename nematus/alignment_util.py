@@ -30,7 +30,7 @@ def get_alignments(attention, x_mask, y_mask):
 
     for target_sent_index in range(n_cols):
         #print "\n\n","*" * 40
-        print "Going through sentence", target_sent_index
+        #print "Going through sentence", target_sent_index
         #source_sent_index = source_indexes[target_sent_index]
         target_length = y_mask[:,target_sent_index].tolist().count(1)
         source_length = x_mask[:,target_sent_index].tolist().count(1)

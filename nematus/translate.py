@@ -394,10 +394,12 @@ class Translator(object):
             # return translation with lowest score only
             sidx = numpy.argmin(score)
 
-            if input_item.aux_seq is not None:
-                output_item = sample[sidx], score[sidx], word_probs[sidx], [alignments[0][sidx], alignments[1][sidx]], hyp_graph
-            else:
-                output_item = sample[sidx], score[sidx], word_probs[sidx], [alignments[0][sidx]], hyp_graph
+            # modified for multi-source
+            output_item = sample[sidx], score[sidx], word_probs[sidx], [align[sidx] for align in alignments], hyp_graph
+            #if input_item.aux_seq is not None:
+            #    output_item = sample[sidx], score[sidx], word_probs[sidx], [alignments[0][sidx], alignments[1][sidx]], hyp_graph
+            #else:
+            #    output_item = sample[sidx], score[sidx], word_probs[sidx], [alignments[0][sidx]], hyp_graph
 
         return output_item
 

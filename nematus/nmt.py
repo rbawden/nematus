@@ -156,6 +156,7 @@ def init_params(options):
     if not options['tie_encoder_decoder_embeddings']:
         params = get_layer_param('embedding')(options, params, options['n_words'],
                                               options['dim_word'], suffix='_dec')
+
     # initialise encoder for every possible encoder (for now they have have the same parameter values)
     for i in range(num_encoders):
         if num_encoders > 1:
@@ -211,7 +212,7 @@ def init_params(options):
 
     # --------------- DECODER ---------------
     # use a multi-cGRU if multi-source is used
-    if options['multisource_type'] is not None:
+    if options['multisource_type'] is not None and len(options['extra_sources']) == 1:
         params = get_layer_param('bi_gru_cond')(options,
                                                 params,
                                                 prefix='decoder',
@@ -219,6 +220,18 @@ def init_params(options):
                                                 dim=options['dim'],
                                                 dimctx=ctxdims,
                                                 recurrence_transition_depth=options['dec_base_recurrence_transition_depth'])
+    elif len(options['extra_sources']) == 2:
+        assert options['multisource_type'] == 'att-hier'
+
+        logging.info("Building a model with 3 inputs")
+        params = get_layer_param('tri_gru_cond')(options,
+                                                params,
+                                                prefix='decoder',
+                                                nin=options['dim_word'],
+                                                dim=options['dim'],
+                                                dimctx=ctxdims,
+                                                recurrence_transition_depth=options['dec_base_recurrence_transition_depth'])
+
     else:
         params = get_layer_param(options['decoder'])(options, params,
                                                      prefix='decoder',
@@ -416,7 +429,7 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
         emb = emb_shifted
 
     # decoder - pass through the decoder conditional gru with attention
-    if options['multisource_type'] not in (None, 'init-decoder'):
+    if options['multisource_type'] not in (None, 'init-decoder') and num_encoders == 2:
         proj = get_layer_constr('bi_gru_cond')(tparams, emb, options, dropout,
                                                   prefix='decoder',
                                                   mask=y_mask, context=ctx,
@@ -433,6 +446,26 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
                                                   extra_context=extra_ctxs[0],
                                                   extra_context_mask=extra_x_masks[0],
                                                   extra_pctx_=extra_pctxs_[0])
+
+    elif num_encoders == 3:
+        assert options['multisource_type'] == 'att-hier', 'The attention combination is not compatible with 3 inputs'
+        proj = get_layer_constr('tri_gru_cond')(tparams, emb, options, dropout,
+                                               prefix='decoder',
+                                               mask=y_mask, context=ctx,
+                                               context_mask=x_mask,
+                                               pctx_=pctx_,
+                                               one_step=one_step,
+                                               init_state=init_state[0],
+                                               recurrence_transition_depth=options['dec_base_recurrence_transition_depth'],
+                                               dropout_probability_below=options['dropout_embedding'],
+                                               dropout_probability_ctx=options['dropout_hidden'],
+                                               dropout_probability_rec=options['dropout_hidden'],
+                                               truncate_gradient=options['decoder_truncate_gradient'],
+                                               profile=profile,
+                                               extra_context1=extra_ctxs[0], extra_context2=extra_ctxs[1],
+                                               extra_context_mask1=extra_x_masks[0], extra_context_mask2=extra_x_masks[1],
+                                               extra_pctx1_=extra_pctxs_[0], extra_pctx2_=extra_pctxs_[1])
+
     else:
 
         #logging.info("Building a single-source model")
@@ -635,7 +668,6 @@ def build_multisource_model(tparams, options):
     # ------------ encoder(s) ------------
     for i in range(num_encoders):
         suff = str(i)
-
         x_masks[i] = tensor.matrix('x_mask' + suff, dtype=floatX)
         # source text length 5; batch size 10
         x_masks[i].tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
@@ -837,7 +869,8 @@ def build_sampler(tparams, options, use_noise, trng, return_alignment=False):
     outs = [next_probs, next_sample, ret_state]
 
     if return_alignment:
-        outs.append(opt_ret['dec_alphas0'])
+        for i in range(len(options['extra_sources'])+1):
+            outs.append(opt_ret['dec_alphas'+str(i)])
 
     f_next = theano.function(inps, outs, name='f_next', profile=profile)
     logging.info('Done')
@@ -1010,17 +1043,20 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     else:
         xs = [x] + list(extra_xs)
 
-    assert extra_xs is None or len(extra_xs) <= 1, 'Only accepting one extra source for now'
-    if extra_xs is not None and len(extra_xs) > 0:
-        aux_x = extra_xs[0]
-    else:
-        aux_x = None
+    assert len(xs) <= 3, 'Only accepting up to 2 extra sources for now'
+    #if len(xs) > 1:
+    #    aux_x = extra_xs[0]
+    #    if len(extra_xs)==2:
+    #        aux_x2 = extra_xs[1] # TODO: clean all this up
+    #    else:
+    #        aux_x2 = None
+    #else:
+    #    aux_x = None
 
     sample = []
     sample_score = []
     sample_word_probs = []
-    alignment = []
-    aux_alignment = []
+    alignment = [[] for _ in xs]
     hyp_graph = None
     if stochastic:
         if argmax:
@@ -1040,58 +1076,65 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     hyp_scores = numpy.zeros(live_k).astype(floatX)
     hyp_states = []
     if return_alignment:
-        hyp_alignment = [[] for _ in xrange(live_k)]
-
+        hyp_alignment = []
+        for _ in xs:
+            hyp_alignment.append([[] for _ in xrange(live_k)])
         # multi-source
-        if extra_xs is not None:
-            aux_hyp_alignment = [[] for _ in xrange(live_k)]
+        #for _ in xs[1:]:
+         #   aux_hyp_alignment.append([[] for _ in xrange(live_k)])
+
 
     # for ensemble decoding, we keep track of states and probability distribution
     # for each model in the ensemble
     num_models = len(f_init)
     next_state = [None] * num_models
-    ctx0 = [None] * num_models
+    #ctx = [None] * num_models
     next_p = [None] * num_models
-    dec_alphas = [None] * num_models
+    #dec_alphas = [None] * num_models
 
-    # multi-source (2 attention mechanisms)
-    if aux_x is not None:
-        ctx1 = [None] * num_models
+    # multi-source (at least 2 attention mechanisms)
+    ctx = []
+    dec_alphas = []
+    for _ in xs:
+        ctx.append([None] * num_models)
         if not init_decoder:
-            dec_alphas1 = [None] * num_models  # for multi-source
+            dec_alphas = []
+            for _ in xs:
+                dec_alphas.append([[None] * num_models])  # for multi-source
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
-        if aux_x is not None:
-            ret = f_init[i](x, aux_x)
-        else:
-            ret = f_init[i](x)
+        inps = xs
+        ret = f_init[i](*inps)
 
         # to more easily manipulate batch size, go from (layers, batch_size, dim) to (batch_size, layers, dim)
         ret[0] = numpy.transpose(ret[0], (1, 0, 2))
 
         next_state[i] = numpy.tile(ret[0], (live_k, 1, 1))
-        ctx0[i] = ret[1]
-        if aux_x is not None:
-            ctx1[i] = ret[2]
+
+        # assign each output to ctx
+        for inputnum in range(len(xs)):
+            ctx[inputnum][i] = ret[inputnum+1]
+
     next_w = -1 * numpy.ones((live_k,)).astype('int64')  # bos indicator
 
     # x is a sequence of word ids followed by 0, eos id
     for ii in xrange(maxlen):
         for i in xrange(num_models):
-            ctx = numpy.tile(ctx0[i], [live_k, 1])
-            # multi-source
-            if aux_x is not None:
-                aux_ctx = numpy.tile(ctx1[i], [live_k, 1])
+            ctxs = []
+            for inputnum in range(len(xs)):
+                ctxs.append(numpy.tile(ctx[inputnum][i], [live_k, 1]))
 
             # for theano function, go from (batch_size, layers, dim) to (layers, batch_size, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
 
+
+            inps = [next_w] + ctxs + [next_state[i]]
             # multi-source
-            if aux_x is not None and not init_decoder:
-                inps = [next_w, ctx, aux_ctx, next_state[i]]
-            else:
-                inps = [next_w, ctx, next_state[i]]
+            #if aux_x is not None and not init_decoder:
+            #    inps = [next_w, ctx, aux_ctx, next_state[i]]
+            #else:
+            #    inps = [next_w, ctx, next_state[i]]
 
             ret = f_next[i](*inps)
 
@@ -1099,10 +1142,11 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             # dimension of dec_alpha (k-beam-size, number-of-input-hidden-units)
             next_p[i], next_w_tmp, next_state[i] = ret[0], ret[1], ret[2]
             if return_alignment:
-                dec_alphas[i] = ret[3]
+                for inputnum in range(len(xs)):
+                    dec_alphas[inputnum][i] = ret[3+i]
                 # multi-source
-                if aux_x is not None:
-                    dec_alphas1[i] = ret[4]
+                #if aux_x is not None:
+                #    dec_alphas1[i] = ret[4]
 
             # to more easily manipulate batch size, go from (layers, batch_size, dim) to (batch_size, layers, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
@@ -1168,9 +1212,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
             # averaging the attention weights accross models
             if return_alignment:
-                mean_alignment = sum(dec_alphas) / num_models
-                if aux_x is not None:
-                    aux_mean_alignment = sum(dec_alphas1) / num_models
+                mean_alignment = []
+                for inputnum in range(len(xs)):
+                    mean_alignment.append(sum(dec_alphas[inputnum]) / num_models)
 
             voc_size = next_p[0].shape[1]
             # index of each k-best hypothesis
@@ -1188,10 +1232,12 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                 # holds the history of attention weights for each time step for each of the surviving hypothesis
                 # dimensions (live_k * target_words * source_hidden_units]
                 # at each time step we append the attention weights corresponding to the current target word
-                new_hyp_alignment = [[] for _ in xrange(k - dead_k)]
+                new_hyp_alignment = []
+                for _ in xs:
+                    new_hyp_alignment.append([[] for _ in xrange(k - dead_k)])
 
-                if aux_x is not None:
-                    aux_new_hyp_alignment = [[] for _ in xrange(k - dead_k)]
+                #if aux_x is not None:
+                #    aux_new_hyp_alignment = [[] for _ in xrange(k - dead_k)]
 
             # ti -> index of k-best hypothesis
             for idx, [ti, wi] in enumerate(zip(trans_indices, word_indices)):
@@ -1201,12 +1247,14 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                 new_hyp_states.append([copy.copy(next_state[i][ti]) for i in xrange(num_models)])
                 if return_alignment:
                     # get history of attention weights for the current hypothesis
-                    new_hyp_alignment[idx] = copy.copy(hyp_alignment[ti])
+
+                    for inputnum in range(len(xs)):
+                        new_hyp_alignment[inputnum][idx] = copy.copy(hyp_alignment[inputum][ti])
                     # extend the history with current attention weights
-                    new_hyp_alignment[idx].append(mean_alignment[ti])
-                    if aux_x is not None:
-                        aux_new_hyp_alignment[idx] = copy.copy(aux_hyp_alignment[ti])
-                        aux_new_hyp_alignment[idx].append(aux_mean_alignment[ti])
+                    #new_hyp_alignment[idx].append(mean_alignment[ti])
+                    #if aux_x is not None:
+                    #    aux_new_hyp_alignment[idx] = copy.copy(aux_hyp_alignment[ti])
+                    #    aux_new_hyp_alignment[idx].append(aux_mean_alignment[ti])
 
             # check the finished samples
             new_live_k = 0
@@ -1215,9 +1263,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             hyp_states = []
             word_probs = []
             if return_alignment:
-                hyp_alignment = []
-                if aux_x is not None:
-                    aux_hyp_alignment = []
+                hyp_alignment = [[] for _ in xs]
+                #if aux_x is not None:
+                #    aux_hyp_alignment = []
 
             # sample and sample_score hold the k-best translations and their scores
             for idx in xrange(len(new_hyp_samples)):
@@ -1231,9 +1279,10 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     sample_score.append(new_hyp_scores[idx])
                     sample_word_probs.append(new_word_probs[idx])
                     if return_alignment:
-                        alignment.append(new_hyp_alignment[idx])
-                        if aux_x is not None:
-                            aux_alignment.append(aux_new_hyp_alignment[idx])
+                        for inputnum in range(len(xs)):
+                            alignment[inputnum].append(new_hyp_alignment[inputnum][idx])
+                        #if aux_x is not None:
+                        #    aux_alignment.append(aux_new_hyp_alignment[idx])
                     dead_k += 1
                 else:
                     new_live_k += 1
@@ -1242,9 +1291,10 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     hyp_states.append(copy.copy(new_hyp_states[idx]))
                     word_probs.append(new_word_probs[idx])
                     if return_alignment:
-                        hyp_alignment.append(new_hyp_alignment[idx])
-                        if aux_x is not None:
-                            aux_hyp_alignment.append(aux_new_hyp_alignment[idx])
+                        for inputnum in range(len(xs)):
+                            hyp_alignment[inputnum].append(new_hyp_alignment[inputnum][idx])
+                        #if aux_x is not None:
+                        #    aux_hyp_alignment.append(aux_new_hyp_alignment[idx])
             hyp_scores = numpy.array(hyp_scores)
 
             live_k = new_live_k
@@ -1263,18 +1313,25 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             sample.append(hyp_samples[idx])
             sample_score.append(hyp_scores[idx])
             sample_word_probs.append(word_probs[idx])
+            print idx
             if return_alignment:
-                alignment.append(hyp_alignment[idx])
-                if aux_x is not None:
-                    aux_alignment.append(aux_hyp_alignment[idx])
+                for inputnum in range(len(xs)):
+                    alignment[inputnum].append(hyp_alignment[inputnum][idx])
+                    print len(alignment[inputnum])
+
+                #if aux_x is not None:
+                #    aux_alignment.append(aux_hyp_alignment[idx])
+            raw_input()
         alignments = [[alignment]]
-        if aux_x is not None:
-            alignments.append(aux_alignment)
+        #if aux_x is not None:
+        #    alignments.append(aux_alignment)
 
     if not return_alignment:
-        alignments = [[None for i in range(len(sample))]]
-        if aux_x is not None:
-            alignments.append([None for _ in range(len(sample))])
+        alignments = []
+        for _ in xs:
+            alignments.append([[None for i in range(len(sample))]])
+        #if aux_x is not None:
+        #    alignments.append([None for _ in range(len(sample))])
 
     return sample, sample_score, sample_word_probs, alignments, hyp_graph
 
@@ -1361,10 +1418,12 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
                 alignment_json = []
                 for jdata in get_alignments(attention, x_masks[i], y_mask):
                     alignment_json.append(jdata)
+                    #print jdata
+                    #raw_input()
                 alignments_json.append(alignment_json)
-                print(len(alignment_json))
+                #print 'len alignments = ', len(alignments_json)
 
-                #raw_input()
+            print 'alignments', len(alignments_json)
         else:
             pprobs, cost_per_word = f_log_probs(*inps)
 
@@ -1523,7 +1582,21 @@ def train(dim_word=512,  # word vector dimensionality
     # Structure of dictionaries = one list of dictionaries for each input.
     # First list of dictionaries are source (possibly factored) (:-1) and target (-1).
     # All subsequent lists of dictionaries are for extra sources (possible factored)
-    for i, dicts in enumerate([dictionaries, extra_source_dicts]):
+
+    # structure dictionaries by number of dictionary per input (if dictionaries are provided)
+    extra_source_dicts2 = []
+    j = 0
+    for i in range(len(extra_source_dicts_nums)):
+        extra_source_dicts2.append(extra_source_dicts[j:j+extra_source_dicts_nums[i]])
+        j += extra_source_dicts_nums[i]
+    extra_source_dicts = extra_source_dicts2
+
+    # if no dictionaries were provided, reuse main dictionaries
+    if len(extra_source_dicts) == 0 and len(extra_sources) > 0:
+        extra_source_dicts = [dictionaries[:-1] * len(extra_sources)]
+        extra_source_dicts_nums = [len(dictionaries[:-1]) * len(extra_sources)]
+
+    for i, dicts in enumerate([dictionaries] + extra_source_dicts):
 
         # main source dictionary must be provided
         if len(dicts) == 0 and i == 0:
@@ -1534,7 +1607,7 @@ def train(dim_word=512,  # word vector dimensionality
             logging.warn('Reusing main src dicts for extra input #%s' % str(i))
             dicts = dictionaries[:-1] # only copy source dictionaries
 
-        # no exta sources so ignore looking for extra source dicts
+        # no extra sources so ignore looking for extra source dicts
         elif i > len(extra_sources):
             continue
 
@@ -1550,8 +1623,12 @@ def train(dim_word=512,  # word vector dimensionality
         worddicts_r.append(worddicts_r1)
 
     # vocabulary sizes for each of the input sources (words)
+    #print(len(worddicts))
+    #print(len(extra_source_dicts))
     all_n_words_src = [max(wd[0].values())+1 for w, wd in enumerate(worddicts)]
     model_options['n_words_src'] = all_n_words_src
+
+    #print(all_n_words_src)
 
     # vocabulary size for the target
     if n_words is None:
@@ -1683,7 +1760,9 @@ def train(dim_word=512,  # word vector dimensionality
     # ---------------- build model ----------------
     if multisource_type is not None:
         trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, model_options)
-        inps = [xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask]
+
+        #inps = [xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask]
+        inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]
 
     else:
         trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, model_options)
@@ -1835,30 +1914,17 @@ def train(dim_word=512,  # word vector dimensionality
             n_samples += xlen
 
             if model_options['objective'] == 'CE':
-                if multisource_type is not None:
-                    xs, x_masks, y, y_mask = prepare_multi_data(xs, y,
-                                                                maxlen=maxlen,
-                                                                n_factors=factors,
-                                                                n_words_src=all_n_words_src,
-                                                                n_words=n_words)
 
-                    if any(xx is None for xx in xs):
-                        logging.warning('Multisource: Minibatch with zero sample under length %d' % maxlen)
-                        training_progress.uidx -= 1
-                        continue
-                else:
-                    # only one input so use idx 0 of x and n_words_src
-                    xs, x_masks, y, y_mask = prepare_multi_data(xs, y, maxlen=maxlen,
-                                                                n_factors=factors,
-                                                                n_words_src=all_n_words_src,
-                                                                n_words=n_words)
-                    #xs = [x]
-                    #x_masks = [x_mask]
+                xs, x_masks, y, y_mask = prepare_multi_data(xs, y,
+                                                            maxlen=maxlen,
+                                                            n_factors=factors,
+                                                            n_words_src=all_n_words_src,
+                                                            n_words=n_words)
 
-                    if xs[0] is None:
-                        logging.warning('Minibatch with zero samples under length %d' % maxlen)
-                        training_progress.uidx -= 1
-                        continue
+                if any(xx is None for xx in xs):
+                    logging.warning('Multisource: Minibatch with zero sample under length %d' % maxlen)
+                    training_progress.uidx -= 1
+                    continue
 
                 cost_batches += 1
                 last_disp_samples += xlen
@@ -1877,8 +1943,16 @@ def train(dim_word=512,  # word vector dimensionality
                         debug.write(str(xs[1])+"\n")
                         counter += xs.shape[1]
                         debug.close()
-                    cost = f_update(lrate, xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask)
 
+                    inps = [lrate] + [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]
+                    #cost = f_update(lrate, xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask)
+                    #print(inps)
+                    #raw_input()
+                    #for i in range(len(xs)):
+                    #    print xs[i].shape, x_masks[i].shape
+                    #raw_input()
+
+                    cost = f_update(*inps)
                 else:
                     cost = f_update(lrate, xs[0], x_masks[0], y, y_mask)
 

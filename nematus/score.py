@@ -122,16 +122,16 @@ def rescore_model(source_file, target_file, saveto, models, options, b, normaliz
 
 # Multi-source version of rescore model (just 2 inputs for now)
 # source_files, savetos are lists
-def multi_rescore_model(source_files, target_file, savetos, models, options, b,
-                        normalization_alpha, verbose, alignweights, extra_sources=None, per_word=False):
+def multi_rescore_model(source_file, target_file, savetos, models, options, b,
+                        normalization_alpha, verbose, alignweights, extra_sources=[], per_word=False):
 
     trng = RandomStreams(1234)
 
     def _score(pairs, alignweights=False):
         # sample given an input sequence and obtain scores
         scores = []
-        alignments = []
-        aux_alignments = []
+        #alignments = []
+        #aux_alignments = []
         costs_per_word = []
         for i, model in enumerate(models):
             f_log_probs = load_scorer(model, options[i], alignweights=alignweights)
@@ -143,17 +143,21 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
             #print(all_alignments)
             #raw_input()
 
-            if all_alignments != []:
-                alignments.append(all_alignments[0])
-                aux_alignments.append(all_alignments[1])
+            #if all_alignments != []:
+            #    for align in all_alignments:
+            #    alignments.append(all_alignments[0])
+            #    aux_alignments.append(all_alignments[1])
             costs_per_word.append(cost_per_word)
 
-        return scores, (alignments, aux_alignments), costs_per_word
+        #return scores, tuple(alignments, aux_alignments), costs_per_word
+        return scores, tuple(all_alignments), costs_per_word
 
+
+    print 'extra_sources', extra_sources
 
     # list of sources + target sentences (target sentences are the final list)
     # TODO: make TextIterator generic
-    sents = TextIterator(source_files[0].name, target_file.name,
+    sents = TextIterator(source_file.name, target_file.name,
                          options[0]['dictionaries'][:-1], options[0]['dictionaries'][-1],
                          n_words_source=options[0]['n_words_src'], n_words_target=options[0]['n_words'],
                          batch_size=b, maxlen=float('inf'), sort_by_length=False,
@@ -163,11 +167,13 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
     scores, all_alignments, costs_per_word = _score(sents, alignweights)
 
     source_lines = []
-    extra_source_lines = []
+    source_file.seek(0)
+    source_lines.append([source_file.readlines()])
 
-    source_files[0].seek(0)
-    source_lines.append(source_files[0].readlines())
-    extra_source_lines.append(extra_sources[0].readlines)
+    extra_source_lines = []
+    for i, ss in enumerate(extra_sources):
+        extra_sources[i].seek(0)
+        extra_source_lines.append([extra_sources[i].readlines()])
 
     target_file.seek(0)
     target_lines = target_file.readlines()
@@ -183,21 +189,33 @@ def multi_rescore_model(source_files, target_file, savetos, models, options, b,
         savetos[0].write('{0}\n'.format(score_str))
 
     # optional save weights mode.
+
+    print 'len all alignments', len(all_alignments)
+    print 'len first alignment', len(all_alignments[0])
+
     if alignweights:
         for i, alignments in enumerate(all_alignments):
             # write out the alignments.
+            print i
             temp_name = savetos[i].name + str(i) + ".json"
+            print temp_name
             with tempfile.NamedTemporaryFile(prefix=temp_name) as align_OUT:
                 for line in alignments:
-                    print(line)
+                    print len(line[0][0])
                     raw_input()
                     align_OUT.write(line + "\n")
                 # combine the actual source and target words.
-                combine_source_target_text_1to1(source_files[i], target_file, savetos[i].name, align_OUT, suffix=str(i))
+                print 'savetos', len(savetos)
+                print 'source files', len(extra_sources)
+                if i == 0:
+                    tmp_srcfile = source_file
+                else:
+                    tmp_srcfile = extra_sources[i-1]
+                combine_source_target_text_1to1(tmp_srcfile, target_file, savetos[i].name, align_OUT, suffix=str(i))
 
 
-def main(models, source_files, target_file, saveto, b=80, normalization_alpha=0.0, verbose=False, alignweights=False,
-        extra_sources=None, per_word=False):
+def main(models, source_file, target_file, saveto, b=80, normalization_alpha=0.0, verbose=False, alignweights=False,
+        extra_sources=[], per_word=False):
     # load model model_options
     options = []
     for model in models:
@@ -206,13 +224,14 @@ def main(models, source_files, target_file, saveto, b=80, normalization_alpha=0.
         fill_options(options[-1])
 
     # multi-source or single source functions
-    if extra_sources is None:
-        rescore_model(source_files[0], target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights,
+    if len(extra_sources) == 0:
+        rescore_model(source_file, target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights,
                       per_word=per_word)
     else:
-        savetos = [saveto, file(saveto.name + '_extra', 'w')]
-        multi_rescore_model(source_files, target_file, savetos, models, options, b, normalization_alpha, verbose, alignweights,
-                            extra_sources=extra_sources, per_word=per_word)
+        savetos = [saveto] + [file(saveto.name, 'w') for _ in extra_sources]
+        #source_files = source_files + extra_sources
+        multi_rescore_model(source_file, target_file, savetos, models, options, b, normalization_alpha, verbose, alignweights,
+                            per_word=per_word, extra_sources=extra_sources)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -223,7 +242,7 @@ if __name__ == "__main__":
     parser.add_argument('-v', action="store_true", help="verbose mode.")
     parser.add_argument('--models', '-m', type=str, nargs='+', required=True,
                         help="model to use. Provide multiple models (with same vocabulary) for ensemble decoding")
-    parser.add_argument('--source', '-s', type=argparse.FileType('r'), required=True, metavar='PATH', nargs='+',
+    parser.add_argument('--source', '-s', type=argparse.FileType('r'), required=True, metavar='PATH',
                         help="Source text files (first one is the main input)")
     parser.add_argument('--target', '-t', type=argparse.FileType('r'), required=True, metavar='PATH',
                         help="Target text file")
