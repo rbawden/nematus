@@ -1313,7 +1313,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             sample.append(hyp_samples[idx])
             sample_score.append(hyp_scores[idx])
             sample_word_probs.append(word_probs[idx])
-            print idx
+            #print idx
             if return_alignment:
                 for inputnum in range(len(xs)):
                     alignment[inputnum].append(hyp_alignment[inputnum][idx])
@@ -1321,7 +1321,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
 
                 #if aux_x is not None:
                 #    aux_alignment.append(aux_hyp_alignment[idx])
-            raw_input()
+            #raw_input()
         alignments = [[alignment]]
         #if aux_x is not None:
         #    alignments.append(aux_alignment)

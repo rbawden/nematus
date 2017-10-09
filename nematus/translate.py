@@ -394,10 +394,10 @@ class Translator(object):
             # return translation with lowest score only
             sidx = numpy.argmin(score)
 
-            print len(alignments)
-            print sidx
-            print len(alignments[0])
-            print len(alignments[1])
+            #print len(alignments)
+            #print sidx
+            #print len(alignments[0])
+            #print len(alignments[1])
 
             # modified for multi-source
             output_item = sample[sidx], score[sidx], word_probs[sidx], [align[sidx] for align in alignments], hyp_graph
