@@ -153,7 +153,7 @@ def multi_rescore_model(source_file, target_file, savetos, models, options, b,
         return scores, tuple(all_alignments), costs_per_word
 
 
-    print 'extra_sources', extra_sources
+    #print 'extra_sources', extra_sources
 
     # list of sources + target sentences (target sentences are the final list)
     # TODO: make TextIterator generic
@@ -190,23 +190,23 @@ def multi_rescore_model(source_file, target_file, savetos, models, options, b,
 
     # optional save weights mode.
 
-    print 'len all alignments', len(all_alignments)
-    print 'len first alignment', len(all_alignments[0])
+    #print 'len all alignments', len(all_alignments)
+    #print 'len first alignment', len(all_alignments[0])
 
     if alignweights:
         for i, alignments in enumerate(all_alignments):
             # write out the alignments.
-            print i
+            #print i
             temp_name = savetos[i].name + str(i) + ".json"
-            print temp_name
+            #print temp_name
             with tempfile.NamedTemporaryFile(prefix=temp_name) as align_OUT:
                 for line in alignments:
-                    print len(line[0][0])
-                    raw_input()
+                    #print len(line[0][0])
+                    #raw_input()
                     align_OUT.write(line + "\n")
                 # combine the actual source and target words.
-                print 'savetos', len(savetos)
-                print 'source files', len(extra_sources)
+                #print 'savetos', len(savetos)
+                #print 'source files', len(extra_sources)
                 if i == 0:
                     tmp_srcfile = source_file
                 else:
