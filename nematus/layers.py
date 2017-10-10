@@ -1173,7 +1173,7 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     ctx_dropout = []
     ctx_dropout.append(dropout((n_samples, 2 * options['dim']), dropout_probability_ctx, num=5))
     if pctx_ is None:
-        pctx_ = tensor.dot(context * ctx_dropout[0][0], wn(pp(prefix, 'Wc_tt' + str(0)))) + \
+        pctx_ = tensor.dot(context * ctx_dropout[0][0], wn(pp(prefix, 'Wc_att' + str(0)))) + \
                     tparams[pp(prefix, 'b_att' + str(0))]
     if options['layer_normalisation']:
         pctx_ = layer_norm(pctx_, tparams[pp(prefix, 'Wc_att_lnb' +str(0))],
