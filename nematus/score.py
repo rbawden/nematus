@@ -251,7 +251,7 @@ if __name__ == "__main__":
     parser.add_argument('--walign', '-w', required=False, action="store_true",
                         help="Whether to store the alignment weights or not. If specified, weights will be saved in <target>.alignment")
     # added multisource arguments
-    parser.add_argument('--extra_sources', nargs='+', type=argparse.FileType('r'), default=None, metavar='PATH', help="Auxiliary input file")
+    parser.add_argument('--extra_sources', nargs='+', type=argparse.FileType('r'), default=[], metavar='PATH', help="Auxiliary input file")
     # costs per word
     parser.add_argument("--per_word", default=False, action="store_true", help="Output costs per word instead of per sentence")
     args = parser.parse_args()
