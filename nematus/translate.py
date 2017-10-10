@@ -292,10 +292,10 @@ class Translator(object):
         for model, option in zip(self._models, self._options):
 
             # check compatibility with multisource
-            if option["multisource_type"] is not None and aux_input_file is None:
+            if option["multisource_type"] is not None and len(option['extra_sources']) != 0:
                 logging.error("This model is multi-source but no auxiliary source file was provided.")
                 sys.exit(1)
-            elif option["multisource_type"] is None and aux_input_file is not None:
+            elif option["multisource_type"] is None and len(option['extra_sources']) != 0:
                 logging.warn("You provided an auxiliary input but this model is not multi-source. Ignoring extra input.")
 
             param_list = numpy.load(model).files
