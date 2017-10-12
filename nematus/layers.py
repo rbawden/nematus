@@ -477,7 +477,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
     # initialise parameters for each input source (multi-source)
     for i in range(num_encoders):
-        if num_encoders > 1 and options['multisource_type'] != "init-decoder" and i > 0:
+        if num_encoders > 1 and options['multisource_type'] != "init-decoder":
             suff = str(i)
         else:
             suff = ''
@@ -883,7 +883,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         # suffix for parameters
 
         # FIRST ONE
-        suff = str(0)
+        suff = str('')
         i = 0
 
         # calculate e_ij (here pctx__)
