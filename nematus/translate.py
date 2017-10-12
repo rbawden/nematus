@@ -594,7 +594,7 @@ class Translator(object):
     # modified to use predicted translations when using previous target sentence as additional input
 
 
-    def translate(self, source_segments, translation_settings, aux_source_segments=None):
+    def translate(self, source_segments, translation_settings, aux_source_segments=[]):
         """
         Returns the translation of @param source_segments (and @param aux_source_segments if multi-source)
         """
@@ -678,9 +678,11 @@ class Translator(object):
         source_segments = input_object.readlines()
         # multi-source
         if aux_input_object is not None:
-            aux_source_segments = aux_input_object.readlines()
+            aux_source_segments = []
+            for aux in aux_input_object:
+                aux_source_segments.append(aux_input_object.readlines())
         else:
-            aux_source_segments = None
+            aux_source_segments = []
         return self.translate(source_segments, translation_settings, aux_source_segments=aux_source_segments)
 
 

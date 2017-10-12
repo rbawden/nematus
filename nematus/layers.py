@@ -477,7 +477,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
     # initialise parameters for each input source (multi-source)
     for i in range(num_encoders):
-        if num_encoders > 1 and options['multisource_type'] != "init-decoder":
+        if num_encoders > 1 and options['multisource_type'] != "init-decoder" and i > 0:
             suff = str(i)
         else:
             suff = ''
