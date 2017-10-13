@@ -1031,32 +1031,24 @@ def build_full_sampler(tparams, options, use_noise, trng, greedy=False):
 # this function iteratively calls f_init and f_next functions.
 def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                stochastic=True, argmax=False, return_alignment=False, suppress_unk=False,
-               return_hyp_graph=False, extra_xs=None, init_decoder=False):
+               return_hyp_graph=False, extra_xs=[], init_decoder=False):
     # k is the beam size we have
     if k > 1 and argmax:
         assert not stochastic, \
             'Beam search does not support stochastic sampling with argmax'
 
     # collapse inputs to one list for ease of looping
-    if extra_xs is None:
+    if len(extra_xs) == 0:
         xs = [x]
     else:
-        xs = [x] + list(extra_xs)
+        xs = [x] + extra_xs
 
     assert len(xs) <= 3, 'Only accepting up to 2 extra sources for now'
-    #if len(xs) > 1:
-    #    aux_x = extra_xs[0]
-    #    if len(extra_xs)==2:
-    #        aux_x2 = extra_xs[1] # TODO: clean all this up
-    #    else:
-    #        aux_x2 = None
-    #else:
-    #    aux_x = None
 
     sample = []
     sample_score = []
     sample_word_probs = []
-    alignment = [[] for _ in xs]
+    alignment = [[] for _ in xs] # list for multi-source
     hyp_graph = None
     if stochastic:
         if argmax:
@@ -1076,35 +1068,30 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     hyp_scores = numpy.zeros(live_k).astype(floatX)
     hyp_states = []
     if return_alignment:
-        hyp_alignment = []
+        hyp_alignment = [] # list for multi-source
         for _ in xs:
             hyp_alignment.append([[] for _ in xrange(live_k)])
-        # multi-source
-        #for _ in xs[1:]:
-         #   aux_hyp_alignment.append([[] for _ in xrange(live_k)])
-
 
     # for ensemble decoding, we keep track of states and probability distribution
     # for each model in the ensemble
     num_models = len(f_init)
     next_state = [None] * num_models
-    #ctx = [None] * num_models
     next_p = [None] * num_models
-    #dec_alphas = [None] * num_models
 
     # multi-source (at least 2 attention mechanisms)
-    ctx = []
-    dec_alphas = []
+    ctx = [] # list for multi-source
+    dec_alphas = [] # list for multi-source
     for _ in xs:
         ctx.append([None] * num_models)
         if not init_decoder:
             dec_alphas = []
             for _ in xs:
-                dec_alphas.append([[None] * num_models])  # for multi-source
+                dec_alphas.append([[None] * num_models])
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
         inps = xs
+
         ret = f_init[i](*inps)
 
         # to more easily manipulate batch size, go from (layers, batch_size, dim) to (batch_size, layers, dim)
@@ -1128,13 +1115,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             # for theano function, go from (batch_size, layers, dim) to (layers, batch_size, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
 
-
             inps = [next_w] + ctxs + [next_state[i]]
-            # multi-source
-            #if aux_x is not None and not init_decoder:
-            #    inps = [next_w, ctx, aux_ctx, next_state[i]]
-            #else:
-            #    inps = [next_w, ctx, next_state[i]]
 
             ret = f_next[i](*inps)
 
@@ -1144,9 +1125,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             if return_alignment:
                 for inputnum in range(len(xs)):
                     dec_alphas[inputnum][i] = ret[3+i]
-                # multi-source
-                #if aux_x is not None:
-                #    dec_alphas1[i] = ret[4]
 
             # to more easily manipulate batch size, go from (layers, batch_size, dim) to (batch_size, layers, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
@@ -1236,9 +1214,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                 for _ in xs:
                     new_hyp_alignment.append([[] for _ in xrange(k - dead_k)])
 
-                #if aux_x is not None:
-                #    aux_new_hyp_alignment = [[] for _ in xrange(k - dead_k)]
-
             # ti -> index of k-best hypothesis
             for idx, [ti, wi] in enumerate(zip(trans_indices, word_indices)):
                 new_hyp_samples.append(hyp_samples[ti] + [wi])
@@ -1252,9 +1227,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                         new_hyp_alignment[inputnum][idx] = copy.copy(hyp_alignment[inputnum][ti])
                         # extend the history with current attention weights
                         new_hyp_alignment[inputnum][idx].append(mean_alignment[inputnum][ti])
-                    #if aux_x is not None:
-                    #    aux_new_hyp_alignment[idx] = copy.copy(aux_hyp_alignment[ti])
-                    #    aux_new_hyp_alignment[idx].append(aux_mean_alignment[ti])
 
             # check the finished samples
             new_live_k = 0
@@ -1281,8 +1253,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     if return_alignment:
                         for inputnum in range(len(xs)):
                             alignment[inputnum].append(new_hyp_alignment[inputnum][idx])
-                        #if aux_x is not None:
-                        #    aux_alignment.append(aux_new_hyp_alignment[idx])
                     dead_k += 1
                 else:
                     new_live_k += 1
@@ -1293,8 +1263,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     if return_alignment:
                         for inputnum in range(len(xs)):
                             hyp_alignment[inputnum].append(new_hyp_alignment[inputnum][idx])
-                        #if aux_x is not None:
-                        #    aux_hyp_alignment.append(aux_new_hyp_alignment[idx])
+
             hyp_scores = numpy.array(hyp_scores)
 
             live_k = new_live_k
@@ -1317,21 +1286,15 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             if return_alignment:
                 for inputnum in range(len(xs)):
                     alignment[inputnum].append(hyp_alignment[inputnum][idx])
-                    #print len(alignment[inputnum])
 
-                #if aux_x is not None:
-                #    aux_alignment.append(aux_hyp_alignment[idx])
-            #raw_input()
         alignments = [[alignment]]
-        #if aux_x is not None:
-        #    alignments.append(aux_alignment)
+
 
     if not return_alignment:
         alignments = []
         for _ in xs:
             alignments.append([None for i in range(len(sample))])
-        #if aux_x is not None:
-        #    alignments.append([None for _ in range(len(sample))])
+
 
     return sample, sample_score, sample_word_probs, alignments, hyp_graph
 

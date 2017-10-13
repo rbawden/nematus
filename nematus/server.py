@@ -32,6 +32,7 @@ class NematusServer(object):
 
         @param startup args: as defined in `console.py`
         """
+
         self._style = server_settings.style
         self._host = server_settings.host
         self._port = server_settings.port
@@ -114,5 +115,6 @@ if __name__ == "__main__":
     parser = ConsoleInterfaceServer()
     server_settings = parser.get_server_settings()
     decoder_settings = parser.get_decoder_settings()
+
     server = NematusServer(server_settings, decoder_settings)
     server.start()

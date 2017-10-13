@@ -19,6 +19,8 @@ class DecoderSettings(object):
         self.num_processes = 1
         self.device_list = []
         self.verbose = False
+        self.num_encoders = None
+        self.multisource = None
         if parsed_console_arguments:
             self.update_from(parsed_console_arguments)
 
@@ -32,6 +34,17 @@ class DecoderSettings(object):
         self.num_processes = args.p
         self.device_list = args.device_list
         self.verbose = args.v
+
+        # multisource
+        if not hasattr(args, 'aux_input'):
+            self.multisource = False
+            self.num_encoders = 1
+        elif len(args.aux_input) > 0:
+            self.multisource = True
+            self.num_encoders = len(args.aux_input) + 1
+        else:
+            self.multisource = False
+            self.num_encoders = len(args.aux_input) + 1
 
 
 class TranslationSettings(object):
@@ -55,7 +68,7 @@ class TranslationSettings(object):
         self.get_alignment = False
         self.alignment_type = None
         self.alignment_filename = None
-        self.aux_alignment_filename = None
+        self.aux_alignment_filenames = []
         self.get_search_graph = False
         self.search_graph_filename = None
         self.multisource = False
@@ -75,11 +88,14 @@ class TranslationSettings(object):
         self.n_best = args.n_best
         self.suppress_unk = args.suppress_unk
         self.get_word_probs = args.print_word_probabilities
+
         if args.output_alignment:
             self.get_alignment = True
             self.alignment_filename = args.output_alignment
-            if args.aux_input is not None:
-                self.aux_alignment_filename = file(args.output_alignment.name + '_aux', 'w')
+
+            # alignments for multiple inputs
+            for i in range(len(args.aux_input)):
+                self.aux_alignment_filenames.append(file(args.output_alignment.name + '_aux'+str(i+1), 'w'))
             if args.json_alignment:
                 self.alignment_type = self.ALIGNMENT_JSON
             else:

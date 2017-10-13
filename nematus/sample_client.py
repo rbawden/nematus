@@ -19,8 +19,10 @@ class Client(object):
     def __init__(self, host, port):
         self.host = host
         self.port = port
+        u_a = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.82 Safari/537.36"
         self.headers = {
-            'content-type': 'application/json'
+            'content-type': 'application/json',
+            "USER-AGENT": u_a
         }
 
     def _get_url(self, path='/'):
@@ -47,7 +49,10 @@ class Client(object):
         """
         url = self._get_url('/status')
         response = requests.get(url, headers=self.headers)
-        print json.dumps(response.json(), indent=4)
+
+        print response.text
+        print response.json()
+        #print json.dumps(response.json(), indent=4)
 
 
 if __name__ == "__main__":
@@ -55,6 +60,9 @@ if __name__ == "__main__":
     port = 8080
     client = Client(host, port)
     client.print_server_status()
+
+    print "yay set up"
+
     source_segment = SOURCE_SEGMENTS['de']
     print 'Translating "{0}"'.format(source_segment)
     target_segment = client.translate(source_segment)

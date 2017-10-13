@@ -477,7 +477,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
 
     # initialise parameters for each input source (multi-source)
     for i in range(num_encoders):
-        if num_encoders > 1 and options['multisource_type'] != "init-decoder" and i > 0:
+        if num_encoders > 1 and options['multisource_type'] != "init-decoder":
             suff = str(i)
         else:
             suff = ''
@@ -498,7 +498,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
         U_att = norm_weight(dimctx[i], 1)
         params[pp(prefix, 'U_att' + suff)] = U_att
         c_att = numpy.zeros((1,)).astype(floatX)
-        params[pp(prefix, 'c_att' + suff)] = c_att
+        params[pp(prefix, 'c_tt' + suff)] = c_att
 
         # only initialise these once (and no suffix)
         if options['layer_normalisation']:
@@ -668,7 +668,7 @@ def gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         pctx__ = pctx_ + pstate_[None, :, :]
         # pctx__ += xc_
         pctx__ = tensor.tanh(pctx__)
-        alpha = tensor.dot(pctx__ * ctx_dropout[1], wn(pp(prefix, 'U_att'))) + tparams[pp(prefix, 'c_att')]
+        alpha = tensor.dot(pctx__ * ctx_dropout[1], wn(pp(prefix, 'U_att'))) + tparams[pp(prefix, 'c_tt')]
         alpha = alpha.reshape([alpha.shape[0], alpha.shape[1]])
         alpha = tensor.exp(alpha - alpha.max(0, keepdims=True))
         if context_mask:
@@ -883,7 +883,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         # suffix for parameters
 
         # FIRST ONE
-        suff = str('')
+        suff = str(0)
         i = 0
 
         # calculate e_ij (here pctx__)
@@ -897,7 +897,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         # multiply by weight vector
         alphas.append(tensor.dot(pctxs__[i] * ctx_dropout[1], wn(pp(prefix, 'U_att' + suff))) +
-                      tparams[pp(prefix, 'c_att' + suff)])
+                      tparams[pp(prefix, 'c_tt' + suff)])
 
         alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
@@ -926,7 +926,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         if options['multisource_type'] in ['att-concat', 'att-hier', 'att-gate']:
             # multiply by weight vector
             alphas.append(tensor.dot(pctxs__[i] * extra_ctx_dropout[1], wn(pp(prefix, 'U_att' + suff))) +
-                          tparams[pp(prefix, 'c_att' + suff)])
+                          tparams[pp(prefix, 'c_tt' + suff)])
 
             alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
@@ -1273,7 +1273,7 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         # multiply by weight vector
         alphas.append(tensor.dot(pctxs__[i] * ctx_dropout[0][1], wn(pp(prefix, 'U_att' + suff))) +
-                      tparams[pp(prefix, 'c_att' + suff)])
+                      tparams[pp(prefix, 'c_tt' + suff)])
 
         alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
@@ -1304,7 +1304,7 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         # multiply by weight vector
         alphas.append(tensor.dot(pctxs__[i] * ctx_dropout[i][1], wn(pp(prefix, 'U_att' + suff))) +
-                      tparams[pp(prefix, 'c_att' + suff)])
+                      tparams[pp(prefix, 'c_tt' + suff)])
 
         alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 
@@ -1334,7 +1334,7 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
         # multiply by weight vector
         alphas.append(tensor.dot(pctxs__[i] * ctx_dropout[i][1], wn(pp(prefix, 'U_att' + suff))) +
-                      tparams[pp(prefix, 'c_att' + suff)])
+                      tparams[pp(prefix, 'c_tt' + suff)])
 
         alphas[i] = alphas[i].reshape([alphas[i].shape[0], alphas[i].shape[1]])
 

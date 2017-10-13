@@ -75,3 +75,9 @@ def dummy_options(options):
     for attr in ['extra_sources']:
         if attr not in options:
             options[attr] = []
+
+    if len(options['extra_sources']) > 0:
+        options['multisource'] = True
+    else:
+        options['multisource'] = True
+    options['num_encoders'] = len(options['extra_sources']) + 1

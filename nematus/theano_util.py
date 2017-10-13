@@ -54,6 +54,7 @@ def pp(pp, name):
 # initialize Theano shared variables according to the initial parameters
 def init_theano_params(params):
     tparams = OrderedDict()
+
     for kk, pp in params.iteritems():
         #print('tparams["'+str(kk)+'"] = theano.shared(params["'+str(kk)+'"], name="'+str(kk)+'")')
         tparams[kk] = theano.shared(params[kk], name=kk)
