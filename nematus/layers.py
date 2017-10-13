@@ -1259,7 +1259,7 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         #for i in range(len(context)):
         i = 0
         # suffix for parameters
-        suff = ""
+        suff = str(i)
 
         # calculate e_ij (here pctx__)
         pstates_.append(tensor.dot(h1 * rec_dropout[2+i], wn(pp(prefix, 'W_comb_att' + suff))))
