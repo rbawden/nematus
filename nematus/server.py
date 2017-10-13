@@ -43,12 +43,13 @@ class NematusServer(object):
         self._status = self.STATUS_LOADING
         # start webserver
         self._server = Bottle()
+
         self._server.config['logging.level'] = 'DEBUG' if decoder_settings.verbose else 'WARNING'
         self._server.config['logging.format'] = '%(levelname)s: %(message)s'
         self._server.install(LoggingPlugin(self._server.config))
-        logging.info("Starting Nematus Server")
+        #logging.info("Starting Nematus Server")
         # start translation workers
-        logging.info("Loading translation models")
+        #logging.info("Loading translation models")
         self._translator = Translator(decoder_settings)
         self._status = self.STATUS_OK
 

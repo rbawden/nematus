@@ -138,18 +138,14 @@ def multi_rescore_model(source_file, target_file, savetos, models, options, b,
             score, all_alignments, cost_per_word = multi_pred_probs(f_log_probs, prepare_multi_data, options[i],
                                                          pairs, normalization_alpha=normalization_alpha,
                                                          alignweights=alignweights)
+            #print 'alignment lens'
+            #print len(all_alignments)
+            #print len(all_alignments[0])
+
             scores.append(score)
 
-            #print(all_alignments)
-            #raw_input()
-
-            #if all_alignments != []:
-            #    for align in all_alignments:
-            #    alignments.append(all_alignments[0])
-            #    aux_alignments.append(all_alignments[1])
             costs_per_word.append(cost_per_word)
 
-        #return scores, tuple(alignments, aux_alignments), costs_per_word
         return scores, tuple(all_alignments), costs_per_word
 
 
@@ -196,7 +192,7 @@ def multi_rescore_model(source_file, target_file, savetos, models, options, b,
     if alignweights:
         for i, alignments in enumerate(all_alignments):
             # write out the alignments.
-            #print i
+            #print len(alignments)
             temp_name = savetos[i].name + str(i) + ".json"
             #print temp_name
             with tempfile.NamedTemporaryFile(prefix=temp_name) as align_OUT:
@@ -225,7 +221,8 @@ def main(models, source_file, target_file, saveto, b=80, normalization_alpha=0.0
 
     # multi-source or single source functions
     if len(extra_sources) == 0:
-        rescore_model(source_file, target_file, saveto, models, options, b, normalization_alpha, verbose, alignweights,
+        savetos = [saveto] + [file(saveto.name, 'w') for _ in extra_sources]
+        multi_rescore_model(source_file, target_file, savetos, models, options, b, normalization_alpha, verbose, alignweights,
                       per_word=per_word)
     else:
         savetos = [saveto] + [file(saveto.name, 'w') for _ in extra_sources]

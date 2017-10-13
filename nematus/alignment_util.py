@@ -89,6 +89,10 @@ def combine_source_target_text_1to1(source_IN, target_IN, saveto, alignment_IN, 
         all_matrixes = alignment_IN.readlines()
         target_lines = target_IN.readlines()
         source_lines = source_IN.readlines()
+
+        #print len(all_matrixes)
+        #print len(target_lines)
+
         assert len(all_matrixes) == len(target_lines), 'The number of lines does not match with each other!'
 
         for target_index in range(len(all_matrixes)):

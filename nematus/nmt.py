@@ -1354,7 +1354,7 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
     n_done = 0
 
     # list of alignments for each input source
-    alignments_json = []
+    alignments_json = [[] for _ in range(len(options['extra_sources'])+1)] # list for multi-source
     costs_per_word = []
 
     for inputs, y in iterator:
@@ -1372,21 +1372,33 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
                                                     n_words=options['n_words'],
                                                     n_factors=options['factors'])
 
+        #print xs[0].shape, x_masks[0].shape, y.shape, y_mask.shape
+        #print len(xs[0][0]), len(x_masks[0]), len(y_mask)
+        #raw_input()
+
         # in optional save weights mode.
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
 
         if alignweights:
-            pprobs, attention1, attention2, cost_per_word = f_log_probs(*inps)
-            for i, attention in enumerate([attention1, attention2]):
+            ret = f_log_probs(*inps)
+
+            pprobs = ret[0]
+            attentions = ret[1:-1]
+            cost_per_word = ret[-1]
+
+            #print "num attentions", len(attentions)
+
+            for i, attention in enumerate(attentions):
                 alignment_json = []
+                #print len(x_masks[i]), len(y_mask), len(attention)
                 for jdata in get_alignments(attention, x_masks[i], y_mask):
                     alignment_json.append(jdata)
-                    #print jdata
-                    #raw_input()
-                alignments_json.append(alignment_json)
+                    #print len(alignment_json)
+                alignments_json[i].extend(alignment_json)
                 #print 'len alignments = ', len(alignments_json)
 
             #print 'alignments', len(alignments_json)
+            #print len(alignments_json[0])
         else:
             pprobs, cost_per_word = f_log_probs(*inps)
 
@@ -1401,6 +1413,9 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
             probs.append(pp)
 
         logging.debug('%d samples computed' % (n_done))
+
+    ##print 'returning'
+    #raw_input()
 
     return numpy.array(probs), alignments_json, costs_per_word
 
