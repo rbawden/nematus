@@ -558,7 +558,7 @@ def param_init_gru_cond(options, params, prefix='gru_cond',
     elif options['multisource_type'] == 'att-hier':
         params[pp(prefix, 'U_att-hier')] = norm_weight(dimctx[i], 1)
 
-        params[pp(prefix, 'c_att-hier')] = numpy.zeros((1,)).astype(floatX)
+        params[pp(prefix, 'c_tt-hier')] = numpy.zeros((1,)).astype(floatX)
 
     return params
 
@@ -1001,7 +1001,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             #stacked_dropout =
 
             # TODO: add ctx dropout
-            hier_alpha = tensor.dot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_att-hier')]
+            hier_alpha = tensor.dot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
             hier_alpha.tag.test_value = numpy.ones(shape=(2, 10, 1)).astype(floatX)
             hier_alpha = hier_alpha.reshape([hier_alpha.shape[0], hier_alpha.shape[1]])
             hier_alpha= tensor.exp(hier_alpha - hier_alpha.max(0, keepdims=True))
@@ -1360,7 +1360,7 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             #stacked_ctx.tag.test_value = numpy.ones(shape=(len(context), 10, 48)).astype(floatX)
 
             # TODO: add ctx dropout
-            hier_alpha = tensor.dot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_att-hier')]
+            hier_alpha = tensor.dot(stacked_ctx, wn(pp(prefix, 'U_att-hier'))) + tparams[pp(prefix, 'c_tt-hier')]
             hier_alpha.tag.test_value = numpy.ones(shape=(3, 10, 1)).astype(floatX)
             hier_alpha = hier_alpha.reshape([hier_alpha.shape[0], hier_alpha.shape[1]])
             hier_alpha= tensor.exp(hier_alpha - hier_alpha.max(0, keepdims=True))
