@@ -52,7 +52,7 @@ def load_scorer(model, option, alignweights=None):
         logging.debug("Save weight mode ON, alignment matrix will be saved.")
 
         outputs = [cost]
-        if option['multisource-type'] == 'init-decoder':
+        if option['multisource_type'] == 'init-decoder':
             extra_encoders = 0
         else:
             extra_encoders = len(option['extra_sources'])
