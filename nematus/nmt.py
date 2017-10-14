@@ -1584,6 +1584,7 @@ def train(dim_word=512,  # word vector dimensionality
         elif len(dicts) == 0 and i-1 < len(extra_sources):
             logging.warn('Reusing main src dicts for extra input #%s' % str(i))
             dicts = dictionaries[:-1] # only copy source dictionaries
+            model_options['extra_source_dicts'].append(dictionaries[:-1])
 
         # no extra sources so ignore looking for extra source dicts
         elif i > len(extra_sources):
@@ -1601,9 +1602,10 @@ def train(dim_word=512,  # word vector dimensionality
         worddicts_r.append(worddicts_r1)
 
     # vocabulary sizes for each of the input sources (words)
-    #print(len(worddicts))
-    #print(len(extra_source_dicts))
     all_n_words_src = [max(wd[0].values())+1 for w, wd in enumerate(worddicts)]
+
+    print all_n_words_src
+
     model_options['n_words_src'] = all_n_words_src
 
     #print(all_n_words_src)

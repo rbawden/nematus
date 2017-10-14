@@ -187,7 +187,6 @@ class Translator(object):
         #else:
         #    multisource = False
 
-
         dictionaries = self._options[0]['dictionaries']
         dictionaries_source = dictionaries[:-1]
         dictionary_target = dictionaries[-1]
@@ -195,25 +194,30 @@ class Translator(object):
 
         # get all auxiliary dictionaries
         if self.multisource:
-            aux_dictionaries_source_tmp = self._options[0]['extra_source_dicts']
+
+            totalnum = 0
+            for i in range(self.num_encoders - 1):
+                end_idx = totalnum + self._options[0]['extra_source_dicts_nums'][i]
+                aux_dictionaries_source.append(self._options[0]['extra_source_dicts'][totalnum:end_idx])
+                totalnum = end_idx
 
             # assign the same dictionaries as for the main input if none are specified
-            if aux_dictionaries_source is None or len(aux_dictionaries_source)<1:
-                logging.info("No auxiliary input source dicts provided so reusing the main source dicts.")
-                aux_dictionaries_source = [dictionaries_source * self.num_encoders]
+            #if aux_dictionaries_source is None or len(aux_dictionaries_source)<1:
+            #    logging.info("No auxiliary input source dicts provided so reusing the main source dicts.")
+            #    aux_dictionaries_source = [dictionaries_source * self.num_encoders]
 
             # otherwise use those that are specified
-            elif len(aux_dictionaries_source) != sum(self._options[0]['extra_source_dicts_nums']):
-                exit('The number of extra dictionaries provided does not match the number specified.\n')
+            #elif len(aux_dictionaries_source) != sum(self._options[0]['extra_source_dicts_nums']):
+            #    exit('The number of extra dictionaries provided does not match the number specified.\n')
 
-            else:
-                totalnum = 0
-                for num_dicts in self._options[0]['extra_source_dicts_nums']:
-                    aux_dictionaries_source.append(aux_dictionaries_source_tmp[totalnum:num_dicts])
-                    totalnum += num_dicts
+            #else:
+            #    totalnum = 0
+            #    for num_dicts in self._options[0]['extra_source_dicts_nums']:
+            #        aux_dictionaries_source.append(aux_dictionaries_source_tmp[totalnum:num_dicts])
+            #    totalnum += num_dicts
 
         # load and invert source dictionaries
-        all_n_words_src = [self._options[0]['n_words_src']] + self._options[0]['extra_n_words_src']
+        all_n_words_src = self._options[0]['n_words_src'] #+ self._options[0]['extra_n_words_src']
         # go through the set of dictionaries for each input
 
         self._word_dicts = []
