@@ -50,10 +50,17 @@ def load_scorer(model, option, alignweights=None):
 
     if alignweights:
         logging.debug("Save weight mode ON, alignment matrix will be saved.")
-        if 'multisource_type' not in option or option['multisource_type'] is None:
-            outputs = [cost, opt_ret['dec_alphas0'], opt_ret['cost_per_word']]
-        else:
-            outputs = [cost, opt_ret['dec_alphas0'], opt_ret['dec_alphas1'], opt_ret['cost_per_word']]
+
+        outputs = [cost]
+        for i in range(len(option['extra_sources']) + 1):
+            outputs.append(opt_ret['dec_alphas' + str(i)])
+        outputs.append(opt_ret['cost_per_word'])
+
+        #if 'multisource_type' not in option or option['multisource_type'] is None:
+        #    outputs = [cost, opt_ret['dec_alphas0'], opt_ret['cost_per_word']]
+        #else:
+        #    outputs = [cost, opt_ret['dec_alphas0'], opt_ret['dec_alphas1'], opt_ret['cost_per_word']]
+
         f_log_probs = theano.function(inps, outputs)
     else:
         f_log_probs = theano.function(inps, [cost, opt_ret['cost_per_word']])

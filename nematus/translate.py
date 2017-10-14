@@ -195,11 +195,16 @@ class Translator(object):
         # get all auxiliary dictionaries
         if self.multisource:
 
+
             totalnum = 0
-            for i in range(self.num_encoders - 1):
+            for i in range(sum(self._options[0]['extra_source_dicts_nums'])):
                 end_idx = totalnum + self._options[0]['extra_source_dicts_nums'][i]
                 aux_dictionaries_source.append(self._options[0]['extra_source_dicts'][totalnum:end_idx])
                 totalnum = end_idx
+
+            # if still empty, then none were specified so copy source dictionaries
+            if len(aux_dictionaries_source) == 0:
+                aux_dictionaries_source = [dictionaries_source * self.num_encoders]
 
             # assign the same dictionaries as for the main input if none are specified
             #if aux_dictionaries_source is None or len(aux_dictionaries_source)<1:
