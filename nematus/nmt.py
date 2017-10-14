@@ -1115,7 +1115,10 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             # for theano function, go from (batch_size, layers, dim) to (layers, batch_size, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
 
-            inps = [next_w] + ctxs + [next_state[i]]
+            if init_decoder:
+                inps = [next_w, ctxs[0], next_state[i]]
+            else:
+                inps = [next_w] + ctxs + [next_state[i]]
 
             ret = f_next[i](*inps)
 
