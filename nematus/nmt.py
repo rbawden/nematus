@@ -1389,8 +1389,6 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
             attentions = ret[1:-1]
             cost_per_word = ret[-1]
 
-            #print "num attentions", len(attentions)
-
             for i, attention in enumerate(attentions):
                 alignment_json = []
                 #print len(x_masks[i]), len(y_mask), len(attention)
@@ -1417,8 +1415,12 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
 
         logging.debug('%d samples computed' % (n_done))
 
-    ##print 'returning'
+    #print 'returning', len(alignments_json)
     #raw_input()
+
+    # if init-decoder, only have one attention (the other will be empty anyway)
+    if options['multisource_type'] == 'init-decoder':
+        alignments_json = [alignments_json[0]]
 
     return numpy.array(probs), alignments_json, costs_per_word
 

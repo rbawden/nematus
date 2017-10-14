@@ -197,10 +197,10 @@ def multi_rescore_model(source_file, target_file, savetos, models, options, b,
 
     # optional save weights mode.
 
-    #print 'len all alignments', len(all_alignments)
-    #print 'len first alignment', len(all_alignments[0])
-
     if alignweights:
+
+        print 'num alignments', len(all_alignments)
+
         for i, alignments in enumerate(all_alignments):
             # write out the alignments.
             #print len(alignments)

@@ -58,6 +58,7 @@ def combine_source_target_text(source_IN, nbest_IN, saveto, alignment_IN):
         all_matrixes = alignment_IN.readlines()
         nbest_lines = nbest_IN.readlines()
         source_lines = source_IN.readlines()
+
         assert len(all_matrixes) == len(nbest_lines), "The number of lines does not match with each other!"
 
         for target_index in range(len(all_matrixes)):
