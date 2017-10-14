@@ -52,7 +52,11 @@ def load_scorer(model, option, alignweights=None):
         logging.debug("Save weight mode ON, alignment matrix will be saved.")
 
         outputs = [cost]
-        for i in range(len(option['extra_sources']) + 1):
+        if option['multi_source-type'] == 'init-decoder':
+            extra_encoders = 0
+        else:
+            extra_encoders = len(option['extra_sources'])
+        for i in range(extra_encoders + 1):
             outputs.append(opt_ret['dec_alphas' + str(i)])
         outputs.append(opt_ret['cost_per_word'])
 
