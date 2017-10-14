@@ -149,6 +149,7 @@ class Translator(object):
 
         # multi-source
         self.multisource = decoder_settings.multisource
+        self.num_attentions = decoder_settings.num_attentions
         self.num_encoders = decoder_settings.num_encoders
 
         # load model options
@@ -794,11 +795,16 @@ def main(input_file, output_file, decoder_settings, translation_settings, aux_in
     translator = Translator(decoder_settings)
 
     # set encoder number and multi-source bool
-    translator.num_encoders = len(aux_input_files) + 1
     if len(aux_input_files) > 0:
+        translator.num_encoders = len(aux_input_files) + 1
+        if translator._options[0]['multisource_type'] != 'init-decoder':
+            translator.num_attentions = len(aux_input_files) + 1
+        else:
+            translator.num_attentions = 1
         translator.multisource = True
     else:
         translator.multisource = False
+        translator.num_encoders = 1
 
     translations = translator.translate_file(input_file, translation_settings, aux_input_objects=aux_input_files)
 

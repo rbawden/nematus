@@ -19,7 +19,8 @@ class DecoderSettings(object):
         self.num_processes = 1
         self.device_list = []
         self.verbose = False
-        self.num_encoders = None
+        self.num_attentions = 1
+        self.num_encoders = 1
         self.multisource = None
         if parsed_console_arguments:
             self.update_from(parsed_console_arguments)
@@ -38,13 +39,13 @@ class DecoderSettings(object):
         # multisource
         if not hasattr(args, 'aux_input'):
             self.multisource = False
-            self.num_encoders = 1
+            self.num_inputs = 1
         elif len(args.aux_input) > 0:
             self.multisource = True
-            self.num_encoders = len(args.aux_input) + 1
+            self.num_inputs = len(args.aux_input) + 1
         else:
             self.multisource = False
-            self.num_encoders = len(args.aux_input) + 1
+            self.num_inputs = 1
 
 
 class TranslationSettings(object):
