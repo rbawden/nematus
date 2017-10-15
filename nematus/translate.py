@@ -520,10 +520,7 @@ class Translator(object):
         # prepare to store in lists of inputs
         source_sentences = [[] for _ in range(len(aux_input_)+1)]
 
-
-        idx = 0
-        for line_multiple_inputs in zip(input_, *aux_input_):
-            idx += 1
+        for idx, line_multiple_inputs in enumerate(zip(input_, *aux_input_)):
             # stock the words of the input (for each of the inputs)
             words_s = [[] for _ in range(len(aux_input_) + 1)]
 
@@ -581,7 +578,10 @@ class Translator(object):
                 # if queue is empty after 5s, check if processes are still alive
                 except Empty:
                     for midx in xrange(self._num_processes):
+                        #print 'exitcode =', self._processes[midx].exitcode
+                        #print 'alive =', self._processes[midx].is_alive()
                         if not self._processes[midx].is_alive() and self._processes[midx].exitcode != 0:
+                            #print "not alive and not 0"
                             # kill all other processes and raise exception if one dies
                             self._input_queue.cancel_join_thread()
                             self._output_queue.cancel_join_thread()
