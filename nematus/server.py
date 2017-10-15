@@ -60,10 +60,11 @@ class NematusServer(object):
         response_data = {
             'status': self._status,
             'models': self._models,
-            'version': pkg_resources.require("nematus")[0].version,
-            'service': 'nematus',
+            #'version': pkg_resources.require("Nematus")[0].version,
+            'service': 'Nematus',
         }
         response.content_type = "application/json"
+
         return json.dumps(response_data)
 
     def translate(self):

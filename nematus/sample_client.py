@@ -9,6 +9,11 @@ SOURCE_SEGMENTS = {
     "en":"The truth is rarely pure and never simple .".split()
 }
 
+SOURCE_SEGMENTS = {
+    "en":"C' est le meilleur film que je n' aie jamais vu .".split(),
+    "fr":"The truth is rarely pure and never simple .".split()
+}
+
 class Client(object):
     """
     A sample client for Nematus Server instances.
@@ -63,7 +68,7 @@ if __name__ == "__main__":
 
     print "yay set up"
 
-    source_segment = SOURCE_SEGMENTS['de']
+    source_segment = SOURCE_SEGMENTS['en']
     print 'Translating "{0}"'.format(source_segment)
     target_segment = client.translate(source_segment)
     print target_segment
