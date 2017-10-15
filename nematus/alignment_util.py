@@ -202,8 +202,6 @@ def convert_to_nodes_edges_each_v2(data, sent_id):
     #print target_words
     target_words.append("EOS")
 
-    #print target_words
-
     matrix = jdata["matrix"]
     n_rows = len(matrix)
     n_cols = len(matrix[0])

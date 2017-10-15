@@ -10,8 +10,8 @@ SOURCE_SEGMENTS = {
 }
 
 SOURCE_SEGMENTS = {
-    "en":"C' est le meilleur film que je n' aie jamais vu .".split(),
-    "fr":"The truth is rarely pure and never simple .".split()
+    "fr":"C' est le meilleur film qui existe.".split(),
+    "en":"It 's the best film ever .".split()
 }
 
 class Client(object):
@@ -65,8 +65,6 @@ if __name__ == "__main__":
     port = 8080
     client = Client(host, port)
     client.print_server_status()
-
-    print "yay set up"
 
     source_segment = SOURCE_SEGMENTS['en']
     print 'Translating "{0}"'.format(source_segment)

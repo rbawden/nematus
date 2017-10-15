@@ -634,8 +634,6 @@ def build_model(tparams, options):
     opt_ret['cost_per_word'] = cost * y_mask
     cost = (cost * y_mask).sum(0)
 
-    # print "Print out in build_model()"
-    # print opt_ret
     return trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost
 
 
@@ -1285,7 +1283,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             sample.append(hyp_samples[idx])
             sample_score.append(hyp_scores[idx])
             sample_word_probs.append(word_probs[idx])
-            #print idx
             if return_alignment:
                 for inputnum in range(len(xs)):
                     alignment[inputnum].append(hyp_alignment[inputnum][idx])
@@ -1375,10 +1372,6 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
                                                     n_words=options['n_words'],
                                                     n_factors=options['factors'])
 
-        #print xs[0].shape, x_masks[0].shape, y.shape, y_mask.shape
-        #print len(xs[0][0]), len(x_masks[0]), len(y_mask)
-        #raw_input()
-
         # in optional save weights mode.
         inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
 
@@ -1391,15 +1384,9 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
 
             for i, attention in enumerate(attentions):
                 alignment_json = []
-                #print len(x_masks[i]), len(y_mask), len(attention)
                 for jdata in get_alignments(attention, x_masks[i], y_mask):
                     alignment_json.append(jdata)
-                    #print len(alignment_json)
                 alignments_json[i].extend(alignment_json)
-                #print 'len alignments = ', len(alignments_json)
-
-            #print 'alignments', len(alignments_json)
-            #print len(alignments_json[0])
         else:
             pprobs, cost_per_word = f_log_probs(*inps)
 
@@ -1414,9 +1401,6 @@ def multi_pred_probs(f_log_probs, multi_prepare_data, options, iterator, verbose
             probs.append(pp)
 
         logging.debug('%d samples computed' % (n_done))
-
-    #print 'returning', len(alignments_json)
-    #raw_input()
 
     # if init-decoder, only have one attention (the other will be empty anyway)
     if options['multisource_type'] == 'init-decoder':
@@ -1609,11 +1593,7 @@ def train(dim_word=512,  # word vector dimensionality
     # vocabulary sizes for each of the input sources (words)
     all_n_words_src = [max(wd[0].values())+1 for w, wd in enumerate(worddicts)]
 
-    print all_n_words_src
-
     model_options['n_words_src'] = all_n_words_src
-
-    #print(all_n_words_src)
 
     # vocabulary size for the target
     if n_words is None:
@@ -1930,12 +1910,6 @@ def train(dim_word=512,  # word vector dimensionality
                         debug.close()
 
                     inps = [lrate] + [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]
-                    #cost = f_update(lrate, xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask)
-                    #print(inps)
-                    #raw_input()
-                    #for i in range(len(xs)):
-                    #    print xs[i].shape, x_masks[i].shape
-                    #raw_input()
 
                     cost = f_update(*inps)
                 else:

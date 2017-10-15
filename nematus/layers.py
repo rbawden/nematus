@@ -1269,7 +1269,6 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
         pctxs__.append(pctx_ + pstates_[i][None, :, :])
         # pctx__ += xc_
         pctxs__[i] = tensor.tanh(pctxs__[i])
-        #pctxs__[i] = theano.printing.Print('Cc_')(pctxs__[i])
 
         # multiply by weight vector
         alphas.append(tensor.dot(pctxs__[i] * ctx_dropout[0][1], wn(pp(prefix, 'U_att' + suff))) +
@@ -1283,7 +1282,6 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
             alphas[i] = alphas[i] * context_mask
         alphas[i] = alphas[i] / alphas[i].sum(0, keepdims=True)
         ctxs_.append((cc_ * alphas[i][:, :, None]).sum(0))  # current context
-        #ctxs_[i] = theano.printing.Print('Ctx')(ctxs_[i])
         ctxs_[i].tag.test_value = numpy.ones(shape=(10, 48)).astype(floatX)
 
 
@@ -1444,10 +1442,6 @@ def tri_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
     _step = _step_slice
 
     shared_vars = []
-
-    #for i in range(len(context)):
-    #    print context[i].tag.test_value.shape
-
 
     if one_step:
         rval = _step(*(

@@ -416,8 +416,6 @@ class Translator(object):
             # modified for multi-source
             output_item = sample[sidx], score[sidx], word_probs[sidx], [align[sidx] for align in alignments], hyp_graph
 
-        logging.info(output_item)
-
         return output_item
 
     def _multi_sample(self, input_item, trng, fs_init, fs_next, gen_sample):
@@ -476,8 +474,6 @@ class Translator(object):
     def _send_jobs(self, input_, translation_settings):
         """
         """
-
-        logging.info('single source send jobs')
         source_sentences = []
         for idx, line in enumerate(input_):
             if translation_settings.char_level:
