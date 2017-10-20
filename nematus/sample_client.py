@@ -3,6 +3,7 @@
 
 import json
 import requests # use `pip install requests` if not available on your system
+import time
 
 SOURCE_SEGMENTS = {
     "de":"Die Wahrheit ist selten rein und nie einfach .".split(),
@@ -68,5 +69,8 @@ if __name__ == "__main__":
 
     source_segment = SOURCE_SEGMENTS['en']
     print 'Translating "{0}"'.format(source_segment)
+    start = time.time()
     target_segment = client.translate(source_segment)
+    end = time.time()
     print target_segment
+    print end-start

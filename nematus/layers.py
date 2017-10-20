@@ -958,7 +958,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
                 ctx_ = layer_norm(ctx_, tparams[pp(prefix, 'W_projcomb_att_lnb')],
                                   tparams[pp(prefix, 'W_projcomb_att_lns')])
             # non-linearity as in Zoph and Knight
-            ctx_ = tanh(ctx_)
+            #ctx_ = tanh(ctx_)
 
         # apply a context gate between the two different contexts
         elif options['multisource_type'] == "att-gate":
@@ -994,7 +994,7 @@ def bi_gru_cond_layer(tparams, state_below, options, dropout, prefix='gru',
 
             logging.info("Doing multi-source with hierarchical attention")
 
-            # stack the contexts ready for hierarchical attention
+            # stack the contexts ready for hierarchical attfention
             stacked_ctx = tensor.stack(ctxs_)
             # batch size 10, dimension 48, 2 contexts
             stacked_ctx.tag.test_value = numpy.ones(shape=(2, 10, 48)).astype(floatX)

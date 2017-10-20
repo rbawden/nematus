@@ -492,7 +492,8 @@ def build_decoder(tparams, options, y, ctx, init_state, dropout, x_mask=None, y_
     # weights (alignment matrix)
     opt_ret['dec_alphas0'] = proj[2]
     if options['multisource_type'] not in (None, 'init-decoder'):
-        opt_ret['dec_alphas1'] = proj[3]  # auxiliary
+        for i in range(num_encoders - 1):
+            opt_ret['dec_alphas'+str(i+1)] = proj[3+i]  # auxiliary
 
     # we return state of each layer
     if sampling:

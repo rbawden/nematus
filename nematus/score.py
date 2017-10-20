@@ -38,13 +38,15 @@ def load_scorer(model, option, alignweights=None):
     if 'multisource_type' not in option:
         option['multisource_type'] = None
 
-    if 'multisource_type' not in option or option['multisource_type'] is None:
-        print("building single source model")
-        trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, option)
-        inps = [x, x_mask, y, y_mask]
-    else:
-        trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, option)
-        inps = [xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask]
+    #if 'multisource_type' not in option or option['multisource_type'] is None:
+     #   print("building single source model")
+       # trng, use_noise, x, x_mask, y, y_mask, opt_ret, cost = build_model(tparams, option)
+      #  inps = [x, x_mask, y, y_mask]
+    #else:
+    trng, use_noise, xs, x_masks, y, y_mask, opt_ret, cost = build_multisource_model(tparams, option)
+    #inps = [xs[0], x_masks[0], xs[1], x_masks[1], y, y_mask]
+
+    inps = [z for (x, x_mask) in zip(xs, x_masks) for z in (x, x_mask)] + [y, y_mask]  # list of inputs
 
     use_noise.set_value(0.)
 
@@ -199,7 +201,7 @@ def multi_rescore_model(source_file, target_file, savetos, models, options, b,
 
     if alignweights:
 
-        print 'num alignments', len(all_alignments)
+        #print 'num alignments', len(all_alignments)
 
         for i, alignments in enumerate(all_alignments):
             # write out the alignments.
