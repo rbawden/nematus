@@ -516,7 +516,8 @@ class Translator(object):
         # prepare to store in lists of inputs
         source_sentences = [[] for _ in range(len(aux_input_)+1)]
 
-        for idx, line_multiple_inputs in enumerate(zip(input_, *aux_input_)):
+        idx = 0
+        for line_multiple_inputs in zip(input_, *aux_input_):
             # stock the words of the input (for each of the inputs)
             words_s = [[] for _ in range(len(aux_input_) + 1)]
 
@@ -560,6 +561,8 @@ class Translator(object):
 
             for j in range(len(aux_input_) + 1):
                 source_sentences[j].append(words)
+
+            idx += 1
 
         return idx+1, tuple(source_sentences) #(source_sentences, source_sentences2)
 
