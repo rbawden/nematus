@@ -749,7 +749,10 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
 
     # build each of the encoders (first is main one and following ones are auxiliary ones)
     for i in range(num_encoders):
-        suff = str(i)
+        if len(num_encoders)==1:
+            suff=''
+        else:
+            suff = str(i)
 
         xs[i], ctxs[i] = build_encoder(tparams, options, dropout, x_mask=None, sampling=True, suffix=suff)
         n_samples = xs[i].shape[2]
