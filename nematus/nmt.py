@@ -666,7 +666,7 @@ def build_multisource_model(tparams, options):
 
     # ------------ encoder(s) ------------
     for i in range(num_encoders):
-        if len(num_encoders) == 1:
+        if num_encoders == 1:
             suff = ''
         else:
             suff = str(i)
@@ -752,7 +752,7 @@ def build_multi_sampler(tparams, options, use_noise, trng, return_alignment=Fals
 
     # build each of the encoders (first is main one and following ones are auxiliary ones)
     for i in range(num_encoders):
-        if len(num_encoders)==1:
+        if num_encoders==1:
             suff=''
         else:
             suff = str(i)
