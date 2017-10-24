@@ -666,7 +666,10 @@ def build_multisource_model(tparams, options):
 
     # ------------ encoder(s) ------------
     for i in range(num_encoders):
-        suff = str(i)
+        if len(num_encoders) == 1:
+            suff = ''
+        else:
+            suff = str(i)
         x_masks[i] = tensor.matrix('x_mask' + suff, dtype=floatX)
         # source text length 5; batch size 10
         x_masks[i].tag.test_value = numpy.ones(shape=(5, 10)).astype(floatX)
