@@ -703,7 +703,7 @@ def build_multisource_model(tparams, options):
 
     else:
         assert len(ctx_means) == 1, 'you must specify a multi-source type compatible with build_multisource_model()'
-        #ctx_mean_combo = ctx_means[0]
+        ctx_mean_combo = ctx_means[0]
 
     # initial decoder state
     init_state = get_layer_constr('ff')(tparams, ctx_mean_combo, options, dropout,
