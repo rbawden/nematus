@@ -702,7 +702,7 @@ def build_multisource_model(tparams, options):
         ctx_mean_combo = numpy.sum(ctx_means)/len(ctx_means)#ctx_means[1]
 
     else:
-        assert len(ctx_means) == 0, 'you must specify a multi-source type compatible with build_multisource_model()'
+        assert len(ctx_means) == 1, 'you must specify a multi-source type compatible with build_multisource_model()'
         #ctx_mean_combo = ctx_means[0]
 
     # initial decoder state
