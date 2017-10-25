@@ -1053,7 +1053,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     sample = []
     sample_score = []
     sample_word_probs = []
-    alignment = [[] for _ in xs] # list for multi-source
+    alignments = [[] for _ in xs] # list for multi-source
     hyp_graph = None
     if stochastic:
         if argmax:
@@ -1260,7 +1260,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     sample_word_probs.append(new_word_probs[idx])
                     if return_alignment:
                         for inputnum in range(len(xs)):
-                            alignment[inputnum].append(new_hyp_alignment[inputnum][idx])
+                            alignments[inputnum].append(new_hyp_alignment[inputnum][idx])
                     dead_k += 1
                 else:
                     new_live_k += 1
@@ -1293,9 +1293,9 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             sample_word_probs.append(word_probs[idx])
             if return_alignment:
                 for inputnum in range(len(xs)):
-                    alignment[inputnum].append(hyp_alignment[inputnum][idx])
+                    alignments[inputnum].append(hyp_alignment[inputnum][idx])
 
-        alignments = [[alignment]]
+        #alignments = [[alignments]]
 
     if not return_alignment:
         alignments = []
