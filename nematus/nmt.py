@@ -1284,6 +1284,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             next_w = numpy.array([w[-1] for w in hyp_samples])
             next_state = [numpy.array(state) for state in zip(*hyp_states)]
 
+    #alignments = []
     # dump every remaining one
     if not argmax and live_k > 0:
         for idx in xrange(live_k):
@@ -1295,7 +1296,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
                     alignment[inputnum].append(hyp_alignment[inputnum][idx])
 
         alignments = [[alignment]]
-
 
     if not return_alignment:
         alignments = []

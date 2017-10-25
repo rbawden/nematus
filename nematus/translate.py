@@ -413,6 +413,8 @@ class Translator(object):
             # return translation with lowest score only
             sidx = numpy.argmin(score)
 
+            #print sidx, len(sample)
+
             # modified for multi-source
             output_item = sample[sidx], score[sidx], word_probs[sidx], [align[sidx] for align in alignments], hyp_graph
 
@@ -516,8 +518,9 @@ class Translator(object):
         # prepare to store in lists of inputs
         source_sentences = [[] for _ in range(len(aux_input_)+1)]
 
-        idx = 0
+        idx = -1
         for line_multiple_inputs in zip(input_, *aux_input_):
+            idx += 1
             # stock the words of the input (for each of the inputs)
             words_s = [[] for _ in range(len(aux_input_) + 1)]
 
@@ -562,7 +565,7 @@ class Translator(object):
             for j in range(len(aux_input_) + 1):
                 source_sentences[j].append(words)
 
-            idx += 1
+
 
         return idx+1, tuple(source_sentences) #(source_sentences, source_sentences2)
 
@@ -571,9 +574,11 @@ class Translator(object):
         """
         while len(self._retrieved_translations[request_id]) < num_samples:
             resp = None
+            print len(self._retrieved_translations[request_id]), num_samples
             while resp is None:
                 try:
                     resp = self._output_queue.get(True, timeout)
+                    #print resp
                 # if queue is empty after 5s, check if processes are still alive
                 except Empty:
                     for midx in xrange(self._num_processes):
@@ -667,6 +672,7 @@ class Translator(object):
                 translations.append(n_best_list)
             # single-best translation
             else:
+                #print 'len alignments', len(alignments)
                 current_alignment = None if not translation_settings.get_alignment else alignments[0]
 
                 aux_current_alignments = []  # list for multi-source
