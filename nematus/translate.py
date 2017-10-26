@@ -574,7 +574,7 @@ class Translator(object):
         """
         while len(self._retrieved_translations[request_id]) < num_samples:
             resp = None
-            print len(self._retrieved_translations[request_id]), num_samples
+            #print len(self._retrieved_translations[request_id]), num_samples
             while resp is None:
                 try:
                     resp = self._output_queue.get(True, timeout)
