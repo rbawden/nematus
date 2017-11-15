@@ -73,7 +73,10 @@ def dummy_options(options):
         if attr not in options:
             options[attr] = None
     if 'extra_sources' not in options:
-        options[attr] = options['aux_input']
+        if 'aux_input' in options:
+            options['extra_sources'] = options['aux_input']
+        else:
+            options['extra_sources'] = []
 
     if len(options['extra_sources']) > 0:
         options['multisource'] = True
