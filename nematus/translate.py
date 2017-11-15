@@ -78,27 +78,21 @@ class Translation(object):
 
         return header + "\n".join(matrix)
 
-    def get_alignment_json(self, as_string=True, aux=False):
+    def get_alignment_json(self, as_string=True, aux=None):
         """
         Returns this translation's alignment (or the auxiliary alignment for multi-source
         @param aux True) as a JSON serializable object
         (@param as_string False) or a JSON formatted string (@param as_string
         True).
         """
-        if aux:
-            source_tokens = self.aux_source_words + ["</s>"]
-            alignment = self.aux_alignment[aux]
-        else:
-
+        if aux is None:
             source_tokens = self.source_words + ["</s>"]
             alignment = self.alignment
+        else:
+            source_tokens = self.aux_source_words[aux] + ["</s>"]
+            alignment = self.aux_alignment[aux]
 
         target_tokens = self.target_words + ["</s>"]
-
-
-        print source_tokens
-        print target_tokens
-        print len(alignment)
 
         if self.hypothesis_id is not None:
             tid = self.sentence_id + self.hypothesis_id
@@ -411,6 +405,7 @@ class Translator(object):
         else:
             sample, score, word_probs, alignments, hyp_graph = self._sample(input_item, trng, fs_init, fs_next, gen_sample)
 
+
         # normalize scores according to sequence lengths
         if normalization_alpha:
             adjusted_lengths = numpy.array([len(s) ** normalization_alpha for s in sample])
@@ -524,36 +519,35 @@ class Translator(object):
         # prepare to store in lists of inputs
         source_sentences = [[] for _ in range(len(aux_input_)+1)]
 
-        idx = -1
-        for line_multiple_inputs in zip(input_, *aux_input_):
-            idx += 1
-            # stock the words of the input (for each of the inputs)
-            words_s = [[] for _ in range(len(aux_input_) + 1)]
-
-            for i, line in enumerate(line_multiple_inputs):
-                if translation_settings.char_level:
-                    words = list(line.decode('utf-8').strip())
-                else:
-                    words = line.strip().split()
-                words_s[i] = words
+        # go through sentences (returns tuples w/ sentence for each input)
+        for sidx, line in enumerate(zip(input_, *aux_input_)):
 
             # stock the x forms of the words (convert from dictionaries)
             xs = [[] for _ in range(len(aux_input_) + 1)]
+            # stock the words of the input (for each of the inputs)
+            words_s = [[] for _ in range(len(aux_input_) + 1)]
 
-            for i, line in enumerate(line_multiple_inputs):
-                for w in words_s[i]:
+            # stock words for each of the lines
+            for iidx, input in enumerate(line):
+                if translation_settings.char_level:
+                    words = list(input.decode('utf-8').strip())
+                else:
+                    words = input.strip().split()
+                words_s[iidx] = words
 
-                    w = [self._word_dicts[i][j][f] if f in self._word_dicts[i][j] else 1 for (j, f) in enumerate(w.split('|'))]
+                # stock factors
+                for w in words_s[iidx]:
+                    w = [self._word_dicts[iidx][j][f] if f in self._word_dicts[iidx][j] else 1 for (j, f) in enumerate(w.split('|'))]
                     if len(w) != self._options[0]['factors']:
                         logging.warning(
                             'Expected {0} factors, but input word has {1}\n'.format(self._options[0]['factors'], len(w)))
                         for midx in xrange(self._num_processes):
                             self._processes[midx].terminate()
                         sys.exit(1)
-                    xs[i].append(w)
+                    xs[iidx].append(w)
 
-            for j in range(len(aux_input_)+1):
-                xs[j] += [[0] * self._options[0]['factors']]
+                xs[iidx] += [[0] * self._options[0]['factors']]
+                source_sentences[iidx].append(words_s[iidx])
 
             input_item = QueueItem(verbose=self._verbose,
                                    return_hyp_graph=translation_settings.get_search_graph,
@@ -564,14 +558,11 @@ class Translator(object):
                                    nbest=translation_settings.n_best,
                                    seq=xs[0],
                                    aux_seq=xs[1:],
-                                   idx=idx,
+                                   idx=sidx,
                                    request_id=translation_settings.request_id)
             self._input_queue.put(input_item)
 
-            for j in range(len(aux_input_) + 1):
-                source_sentences[j].append(words)
-
-        return idx+1, tuple(source_sentences) #(source_sentences, source_sentences2)
+        return sidx+1, tuple(source_sentences) #(source_sentences, source_sentences2)
 
     def _retrieve_jobs(self, num_samples, request_id, timeout=5):
         """
@@ -599,7 +590,6 @@ class Translator(object):
                             sys.exit(1)
             request_id, idx, output_item = resp
             self._retrieved_translations[request_id][idx] = output_item
-            #print self._retrieved_translations
 
         for idx in xrange(num_samples):
             yield self._retrieved_translations[request_id][idx]
@@ -629,7 +619,7 @@ class Translator(object):
             # TODO: make this one the generic send jobs
             n_samples, multiple_source_sentences = self._send_jobs_multisource(source_segments, [], translation_settings)
 
-        os.sys.stderr.write(str(translation_settings.predicted_trg)+"\n")
+        #os.sys.stderr.write(str(translation_settings.predicted_trg)+"\n")
 
         translations = []
 
@@ -649,6 +639,7 @@ class Translator(object):
                 current_aux = [ss[i] for ss in multiple_source_sentences[1:]]
 
             samples, scores, word_probs, alignments, hyp_graph = trans
+
             # n-best list
             if translation_settings.n_best is True:
                 order = numpy.argsort(scores)
@@ -679,13 +670,6 @@ class Translator(object):
                 aux_current_alignments = []  # list for multi-source
                 for e in range(self.num_encoders - 1):
                     aux_current_alignments.append(None if not translation_settings.get_alignment else alignments[e + 1])
-
-                #print "src words = ", len(multiple_source_sentences[0][i])
-                #print "aux src words = ", len(current_aux[0][i])
-                #print "trg words = ", seqs2words(samples, self._word_idict_trg, join=False)
-                #print "current alignment = ", len(current_alignment)
-                #print len(current_alignment[0])
-                #print len(aux_current_alignments[0])
 
                 translation = Translation(sentence_id=i,
                                           source_words=multiple_source_sentences[0][i],

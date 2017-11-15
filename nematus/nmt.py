@@ -1093,10 +1093,10 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     for _ in xs:
         ctx.append([None] * num_models)
         if not init_decoder:
-            for _ in xs:
-                dec_alphas.append([[None] * num_models])
-        else:
             dec_alphas.append([[None] * num_models])
+
+    if init_decoder:
+        dec_alphas = [[[None] * num_models]]
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
@@ -1137,7 +1137,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             next_p[i], next_w_tmp, next_state[i] = ret[0], ret[1], ret[2]
             if return_alignment:
                 for inputnum in range(len(xs)):
-                    dec_alphas[inputnum][i] = ret[3+i]
+                    dec_alphas[inputnum][i] = ret[3 + inputnum]
 
             # to more easily manipulate batch size, go from (layers, batch_size, dim) to (batch_size, layers, dim)
             next_state[i] = numpy.transpose(next_state[i], (1, 0, 2))
