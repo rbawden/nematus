@@ -1093,7 +1093,7 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     for _ in xs:
         ctx.append([None] * num_models)
         if not init_decoder:
-            dec_alphas.append([[None] * num_models])
+            dec_alphas.append([None] * num_models)
 
     if init_decoder:
         dec_alphas = [[[None] * num_models]]
