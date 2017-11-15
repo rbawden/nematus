@@ -91,3 +91,5 @@ def dummy_options(options):
 
     if options['multisource_type'] is not None and 'init' not in options['multisource_type']:
         options['num_attentions'] = options['num_encoders']
+    else:
+        options['num_attentions'] = 1

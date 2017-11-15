@@ -92,7 +92,13 @@ class Translation(object):
 
             source_tokens = self.source_words + ["</s>"]
             alignment = self.alignment
+
         target_tokens = self.target_words + ["</s>"]
+
+
+        print source_tokens
+        print target_tokens
+        print len(alignment)
 
         if self.hypothesis_id is not None:
             tid = self.sentence_id + self.hypothesis_id
@@ -672,7 +678,14 @@ class Translator(object):
 
                 aux_current_alignments = []  # list for multi-source
                 for e in range(self.num_encoders - 1):
-                    aux_current_alignments.append(None if not translation_settings.get_alignment else alignments[e + 1][0])
+                    aux_current_alignments.append(None if not translation_settings.get_alignment else alignments[e + 1])
+
+                #print "src words = ", len(multiple_source_sentences[0][i])
+                #print "aux src words = ", len(current_aux[0][i])
+                #print "trg words = ", seqs2words(samples, self._word_idict_trg, join=False)
+                #print "current alignment = ", len(current_alignment)
+                #print len(current_alignment[0])
+                #print len(aux_current_alignments[0])
 
                 translation = Translation(sentence_id=i,
                                           source_words=multiple_source_sentences[0][i],

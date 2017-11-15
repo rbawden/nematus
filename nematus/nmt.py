@@ -1093,9 +1093,10 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
     for _ in xs:
         ctx.append([None] * num_models)
         if not init_decoder:
-            dec_alphas = []
             for _ in xs:
                 dec_alphas.append([[None] * num_models])
+        else:
+            dec_alphas.append([[None] * num_models])
 
     # get initial state of decoder rnn and encoder context
     for i in xrange(num_models):
@@ -1248,8 +1249,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             word_probs = []
             if return_alignment:
                 hyp_alignment = [[] for _ in xs]
-                #if aux_x is not None:
-                #    aux_hyp_alignment = []
 
             # sample and sample_score hold the k-best translations and their scores
             for idx in xrange(len(new_hyp_samples)):
@@ -1288,7 +1287,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             next_w = numpy.array([w[-1] for w in hyp_samples])
             next_state = [numpy.array(state) for state in zip(*hyp_states)]
 
-    #alignments = []
     # dump every remaining one
     if not argmax and live_k > 0:
         for idx in xrange(live_k):
@@ -1298,8 +1296,6 @@ def gen_sample(f_init, f_next, x, trng=None, k=1, maxlen=30,
             if return_alignment:
                 for inputnum in range(len(xs)):
                     alignments[inputnum].append(hyp_alignment[inputnum][idx])
-
-        #alignments = [[alignments]]
 
     if not return_alignment:
         alignments = []
