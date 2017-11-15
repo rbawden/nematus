@@ -72,12 +72,22 @@ def dummy_options(options):
     for attr in ['multisource_type']:
         if attr not in options:
             options[attr] = None
-    for attr in ['extra_sources']:
-        if attr not in options:
-            options[attr] = []
+    if 'extra_sources' not in options:
+        options[attr] = options['aux_input']
 
     if len(options['extra_sources']) > 0:
         options['multisource'] = True
     else:
         options['multisource'] = True
-    options['num_encoders'] = len(options['extra_sources']) + 1
+
+    if 'aux_input' in options:
+        options['num_encoders'] = len(options['aux_input']) + 1
+    elif 'extra_input' in options:
+        options['num_encoders'] = len(options['extra_input']) + 1
+    elif 'extra_sources' in options:
+        options['num_encoders'] = len(options['extra_sources']) + 1
+    else:
+        options['num_encoders'] = 1
+
+    if options['multisource_type'] is not None and 'init' not in options['multisource_type']:
+        options['num_attentions'] = options['num_encoders']

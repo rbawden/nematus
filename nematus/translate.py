@@ -87,8 +87,9 @@ class Translation(object):
         """
         if aux:
             source_tokens = self.aux_source_words + ["</s>"]
-            alignment = self.aux_alignment
+            alignment = self.aux_alignment[aux]
         else:
+
             source_tokens = self.source_words + ["</s>"]
             alignment = self.alignment
         target_tokens = self.target_words + ["</s>"]
@@ -98,8 +99,10 @@ class Translation(object):
         else:
             tid = self.sentence_id
         links = []
+
         for target_index, target_word_alignment in enumerate(alignment):
             for source_index, weight in enumerate(target_word_alignment):
+
                 links.append(
                              (target_tokens[target_index],
                               source_tokens[source_index],
@@ -147,13 +150,13 @@ class Translator(object):
         self._verbose = decoder_settings.verbose
         self._retrieved_translations = defaultdict(dict)
 
-        # multi-source
-        self.multisource = decoder_settings.multisource
-        self.num_attentions = decoder_settings.num_attentions
-        self.num_encoders = decoder_settings.num_encoders
-
         # load model options
         self._load_model_options()
+
+        # multi-source
+        self.multisource = decoder_settings.multisource
+        self.num_attentions = self._options[-1]['num_attentions']
+        self.num_encoders = self._options[-1]['num_encoders']
 
         # load and invert dictionaries
         self._build_dictionaries()
@@ -195,7 +198,6 @@ class Translator(object):
 
         # get all auxiliary dictionaries
         if self.multisource:
-
 
             totalnum = 0
             for i in range(sum(self._options[0]['extra_source_dicts_nums'])):
@@ -413,8 +415,6 @@ class Translator(object):
             # return translation with lowest score only
             sidx = numpy.argmin(score)
 
-            #print sidx, len(sample)
-
             # modified for multi-source
             output_item = sample[sidx], score[sidx], word_probs[sidx], [align[sidx] for align in alignments], hyp_graph
 
@@ -509,7 +509,7 @@ class Translator(object):
 
             self._input_queue.put(input_item)
             source_sentences.append(words)
-        return idx+1, source_sentences
+        return idx + 1, source_sentences
 
     # Multi-source version (with one auxiliary input)
     def _send_jobs_multisource(self, input_, aux_input_, translation_settings):
@@ -565,8 +565,6 @@ class Translator(object):
             for j in range(len(aux_input_) + 1):
                 source_sentences[j].append(words)
 
-
-
         return idx+1, tuple(source_sentences) #(source_sentences, source_sentences2)
 
     def _retrieve_jobs(self, num_samples, request_id, timeout=5):
@@ -604,11 +602,9 @@ class Translator(object):
         del self._retrieved_translations[request_id]
 
 
-
     def translate_no_queue(self, input_, aux_input_, translation_settings):
 
         1
-
 
 
     ### EXPOSED TRANSLATION FUNCTIONS ###
@@ -672,12 +668,11 @@ class Translator(object):
                 translations.append(n_best_list)
             # single-best translation
             else:
-                #print 'len alignments', len(alignments)
                 current_alignment = None if not translation_settings.get_alignment else alignments[0]
 
                 aux_current_alignments = []  # list for multi-source
                 for e in range(self.num_encoders - 1):
-                    aux_current_alignments.append(None if not translation_settings.get_alignment else alignments[e + 1][j])
+                    aux_current_alignments.append(None if not translation_settings.get_alignment else alignments[e + 1][0])
 
                 translation = Translation(sentence_id=i,
                                           source_words=multiple_source_sentences[0][i],
@@ -733,7 +728,7 @@ class Translator(object):
 
         # TODO: 1 = TEXT, 2 = JSON
         if translation_settings.alignment_type == 1:
-            output_file.write(translation.get_alignment_text(aux=aux_id) + "\n\n")
+            output_file.write(translation.get_alignment_text(aux_id=aux_id) + "\n\n")
         else:
             output_file.write(translation.get_alignment_json(aux=aux_id) + "\n")
 
@@ -767,8 +762,8 @@ class Translator(object):
             self.write_alignment(translation, translation_settings)
 
             # extra alignments for multi-source
-            for i in range(len(self.num_encoders-1)):
-                self.write_alignment(translation, translation_settings, aux=i)
+            for i in range(self.num_encoders - 1):
+                self.write_alignment(translation, translation_settings, aux_id=i)
 
         # construct hypgraph?
         if translation_settings.get_search_graph:
