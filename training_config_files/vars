@@ -9,23 +9,23 @@ working_dir=/PATH/TO/nematus/$SRC-$TRG-src-concat
 datadir=/PATH/TO/data/OpenSubs/data
 
 # prefix to train data (e.g. opensubs.train.en-fr.fr and opensubs.train.en-fr.en)
-train=opensubs.bpe.train.$SRC-$TRG
+train=opensubs.train.$SRC-$TRG
 # file containing previous train sentences (change $SRC to $TRG to use previous target sentences)
-extra_train=opensubs.bpe.train.$SRC-$TRG.subm1.$SRC
+extra_train=opensubs.train.$SRC-$TRG.subm1.$SRC
 # prefix to train dictionary
 traindict=$train
 
 # prefix to dev data
-dev=opensubs.bpe.dev.$SRC-$TRG.3000
+dev=opensubs.dev.$SRC-$TRG.3000
 # file containing previous dev sentences (change $SRC to $TRG to use previous target sentences)
-extra_dev=opensubs.bpe.dev.$SRC-$TRG.3000.subm1.$SRC
+extra_dev=opensubs.dev.$SRC-$TRG.3000.subm1.$SRC
 # prefix to reference for dev data
 ref=opensubs.dev.$SRC-$TRG.3000
 
 # prefix to test data
-test=opensubs.bpe.test.$SRC-$TRG
+test=opensubs.test.$SRC-$TRG
 # file containing previous dev sentences (change $SRC to $TRG to use previous target sentences)
-extra_test=opensubs.bpe.test.$SRC-$TRG.subm1.$SRC
+extra_test=opensubs.test.$SRC-$TRG.subm1.$SRC
 # prefix to reference for dev data
 ref=opensubs.test.$SRC-$TRG
 
