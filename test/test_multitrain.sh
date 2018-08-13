@@ -6,7 +6,7 @@
 # For a setup that preprocesses and trains a larger data set,
 # check https://github.com/rsennrich/wmt16-scripts/tree/master/sample
 
-NEMATUS=/Users/rbawden/Documents/tools/nematus-multisource
+NEMATUS=/PATH/TO/tools/nematus-multisource
 
 
 
@@ -19,18 +19,18 @@ THEANO_FLAGS=exception_verbosity=low,compute_test_value=warn,optimizer=fast_comp
 	--dictionaries $NEMATUS/test/data/vocab.en.json $NEMATUS/test/data/vocab.de.json \
 	--valid_datasets $NEMATUS/test/data/corpus.en $NEMATUS/test/data/corpus.de \
 	--dim_word 12 \
-    --dim 024 \
-    --lrate 0.0001 \
-    --optimizer adam \
-    --maxlen 50 \
-    --batch_size 40 \
-    --valid_batch_size 40 \
-    --validFreq 10 \
-    --dispFreq 10 \
-    --saveFreq 10 \
-    --sampleFreq 100 \
-    --tie_decoder_embeddings \
-    --layer_normalisation \
-    --multisource_type "att-gate" \
-    --extra_sources $NEMATUS/test/data/corpus.sm1.en \
-    --extra_valid_sources $NEMATUS/test/data/corpus.sm1.en
+    	--dim 024 \
+    	--lrate 0.0001 \
+    	--optimizer adam \
+    	--maxlen 50 \
+    	--batch_size 40 \
+    	--valid_batch_size 40 \
+    	--validFreq 10 \
+    	--dispFreq 10 \
+    	--saveFreq 10 \
+    	--sampleFreq 100 \
+    	--tie_decoder_embeddings \
+    	--layer_normalisation \
+    	--multisource_type "att-gate" \
+    	--extra_sources $NEMATUS/test/data/corpus.sm1.en \
+    	--extra_valid_sources $NEMATUS/test/data/corpus.sm1.en
