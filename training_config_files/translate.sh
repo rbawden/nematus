@@ -11,5 +11,7 @@ cat $test.bpe.$SRC | \
      GPUARRAY_FORCE_CUDA_DRIVER_LOAD=True THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=$DEVICE \
      python $NEMATUS/translate.py \
                 -m $model_dir/model/model.npz \
-                -k 12 -n -p 1 --suppress-unk | $model_dir/postprocess.sh
+                -k 12 -n -p 1 --suppress-unk \
+                --aux_input $extra_test
+                | $model_dir/postprocess.sh
 
