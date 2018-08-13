@@ -29,4 +29,8 @@ ray.preallocate=0.8 python $NEMATUS/nmt.py \
     --saveFreq 30000 \
     --sampleFreq 10000 \
     --tie_decoder_embeddings \
-    --layer_normalisation
+    --layer_normalisation \
+    --multisource_type $combo_strategy \
+    --extra_sources $extra_train \
+    --extra_source_dicts $datadir/$traindict.bpe.$SRC.json
+    --extra_valid_sources $extra_dev
