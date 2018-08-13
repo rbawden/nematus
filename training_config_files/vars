@@ -18,14 +18,14 @@ traindict=$train
 # prefix to dev data
 dev=opensubs.dev.$SRC-$TRG.3000
 # file containing previous dev sentences (change $SRC to $TRG to use previous target sentences)
-extra_dev=opensubs.dev.$SRC-$TRG.3000.subm1.$SRC
+extra_dev=opensubs.dev.$SRC-$TRG.3000.bpe.subm1.$SRC
 # prefix to reference for dev data
 ref=opensubs.dev.$SRC-$TRG.3000
 
 # prefix to test data
 test=opensubs.test.$SRC-$TRG
 # file containing previous dev sentences (change $SRC to $TRG to use previous target sentences)
-extra_test=opensubs.test.$SRC-$TRG.subm1.$SRC
+extra_test=opensubs.test.$SRC-$TRG.bpe.subm1.$SRC
 # prefix to reference for dev data
 ref=opensubs.test.$SRC-$TRG
 
