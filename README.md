@@ -1,3 +1,35 @@
+Multi-encoder nematus
+-----------------------
+
+### Specific usage for multi-encoder-usage:
+
+#### Train a new model
+
+Additional parameters (on top of those proposed by ```nmt.py```):
+
+* Combination type:
+
+      -- multisource_type {att-concat,att-hier,att-gate}
+
+* Extra source file (train) (e.g. containing previous sentences)
+
+      --extra_sources FILENAME
+
+* Extra source file (dev)
+
+      --extra_valid_sources FILENAME
+
+
+E.g. test file = ```test/test_multitrain.sh```
+
+#### Translate
+
+Additional parameters (on top of those proposed by ```translate.py```):
+
+* extra source file (e.g. containing previous sentences)
+
+      --aux_input FILENAME
+
 NEMATUS
 -------
 
