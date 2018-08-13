@@ -3,7 +3,7 @@ SRC=en
 TRG=fr
 
 # path to the directory in which the model will be stored
-working_dir=/mnt/baldur0/rbawden/tmodels/nematus/$SRC-$TRG-src-concat
+working_dir=/PATH/TO/nematus/$SRC-$TRG-src-concat
 
 # directory containing data
 datadir=/PATH/TO/data/OpenSubs/data
@@ -29,6 +29,6 @@ DEVICE=cuda3
 
 virtualenv=/PATH/TO/virtual_environment_theano0.9rc2/bin/activate
 
-moses_scripts=/mnt/gna0/rsennrich/tools/mosesdecoder/scripts
-NEMATUS=/mnt/baldur0/rbawden/tools/nematus-multisource/nematus
+moses_scripts=/PATH/TO/tools/mosesdecoder/scripts
+NEMATUS=/PATH/TO/tools/nematus-multisource/nematus
 
