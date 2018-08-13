@@ -30,6 +30,8 @@ Additional parameters (on top of those proposed by ```translate.py```):
 
       --aux_input FILENAME
 
+E.g. test file = ```test/test_multitranslate.sh```
+
 NEMATUS
 -------
 
