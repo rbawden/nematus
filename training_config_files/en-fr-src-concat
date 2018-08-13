@@ -10,13 +10,20 @@ datadir=/PATH/TO/data/OpenSubs/data
 
 # prefix to train data (e.g. opensubs.train.en-fr.fr and opensubs.train.en-fr.en)
 train=opensubs.train.$SRC-$TRG
+# file containing previous train sentences (change $SRC to $TRG to use previous target sentences)
+extra_train=opensubs.train.$SRC-$TRG.subm1.$SRC
 # prefix to train dictionary
 traindict=$train
 
-# predix to dev data
+# prefix to dev data
 dev=opensubs.dev.$SRC-$TRG.3000
+# file containing previous dev sentences (change $SRC to $TRG to use previous target sentences)
+extra_dev=opensubs.dev.$SRC-$TRG.3000.subm1.$SRC
 # prefix to reference for dev data
 ref=opensubs.dev.$SRC-$TRG.3000
+
+# combination strategy
+combo_strategy=att-concat # other values: att-hier, att-gate
 
 DEVICE=cuda3
 
