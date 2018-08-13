@@ -21,15 +21,12 @@ used_input=warn,gpuarray.preallocate=0.1 time python $NEMATUS/translate.py \
       -o $working_dir/model/tuning/$dev.output.dev -k 5 -n -p 1 --suppress-unk
 
 
-$mydir/postprocess.sh < $working_dir/model/tuning/$dev.output.dev > $working_dir/model/tuning/$dev.\
-output.postprocessed.dev
+$mydir/postprocess.sh < $working_dir/model/tuning/$dev.output.dev > $working_dir/model/tuning/$dev.output.postprocessed.dev
 
 ## get BLEU                                                                                         
 BEST=`cat ${modelprefix}.best_bleu || echo 0`
-$moses_scripts/generic/multi-bleu.perl $ref < $working_dir/model/tuning/$dev.output.postprocessed.d\
-ev >> ${modelprefix}.bleu_scores
-BLEU=`$moses_scripts/generic/multi-bleu.perl $ref < $working_dir/model/tuning/$dev.output.postproce\
-ssed.dev | cut -f 3 -d ' ' | cut -f 1 -d ','`
+$moses_scripts/generic/multi-bleu.perl $ref < $working_dir/model/tuning/$dev.output.postprocessed.dev >> ${modelprefix}.bleu_scores
+BLEU=`$moses_scripts/generic/multi-bleu.perl $ref < $working_dir/model/tuning/$dev.output.postprocessed.dev | cut -f 3 -d ' ' | cut -f 1 -d ','`
 BETTER=`echo "$BLEU > $BEST" | bc`
 
 echo "BLEU = $BLEU"
