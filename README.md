@@ -11,14 +11,18 @@ Additional parameters (on top of those proposed by ```nmt.py```):
 
       -- multisource_type {att-concat,att-hier,att-gate}
 
-* Extra source file (train) (e.g. containing previous sentences)
+* Extra source file(s) (up to 2) (train) (e.g. containing previous sentences)
 
-      --extra_sources FILENAME
+      --extra_sources FILENAME1 (FILENAME2)
 
-* Extra source file (dev)
+* Extra source file(s) (up to 2) (dev)
 
-      --extra_valid_sources FILENAME
+      --extra_valid_sources FILENAME1 FILENAME2
+      
+* Extra dictionaries for training. This can be omitted if there is only one extra dictionary and it is the same as the main source dictionary). The parameter `--extra_source_dicts_nums` indicates the number of dictionaries in the list `extra_source_dicts`  associated with each extra source. If no factored translation is performed, then each INT will be 1.
 
+      --extra_source_dicts DICTFILENAME1 DICTFILENAME2
+      --extra_source_dicts_nums INT INT
 
 E.g. test file = ```test/test_multitrain.sh```
 
