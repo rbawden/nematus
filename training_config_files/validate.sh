@@ -16,7 +16,9 @@ modelprefix=$working_dir/model/model
 GPUARRAY_FORCE_CUDA_DRIVER_LOAD=True THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=$DEVICE,on_un\
 used_input=warn,gpuarray.preallocate=0.1 time python $NEMATUS/translate.py \
       -m $modelprefix.npz.dev.npz \
-      -i $datadir/$dev.bpe.$SRC -o $working_dir/model/tuning/$dev.output.dev -k 5 -n -p 1 --suppress-unk
+      -i $datadir/$dev.bpe.$SRC \
+      --aux_input $extra_dev \
+      -o $working_dir/model/tuning/$dev.output.dev -k 5 -n -p 1 --suppress-unk
 
 
 $mydir/postprocess.sh < $working_dir/model/tuning/$dev.output.dev > $working_dir/model/tuning/$dev.\
