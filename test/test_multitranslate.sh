@@ -2,7 +2,7 @@ NEMATUS=PATH_TO/nematus-multisource/nematus
 SRC=de
 TRG=en
 modelname=~/path/to/model/model.npz
-test=./data/corpus.5
+test=./data/corpus
 output=OUTPUT_FILENAME
 # decode                                                                                           $
 
