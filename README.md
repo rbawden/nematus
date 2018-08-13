@@ -32,6 +32,17 @@ Additional parameters (on top of those proposed by ```translate.py```):
 
 E.g. test file = ```test/test_multitranslate.sh```
 
+
+### Example files (with real training parameters)
+
+In ```training_config_files/```:
+
+- train.sh
+- translate.sh
+- validate.sh
+
+Specific configuration found in ```vars``` file (here showing en-fr-src-concat). To start a new experiment, copy all these files in  `training_config_files/` into a new folder and configure the `vars` file.
+
 NEMATUS
 -------
 
