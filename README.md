@@ -1,5 +1,7 @@
-Multi-encoder nematus
+Research code to accompany [Evaluating Discourse Phenomena in Neural Machine Translation](https://www.aclweb.org/anthology/papers/N/N18/N18-1118/)
 -----------------------
+
+Here can be found the code related to the NAACL'18 publication [Evaluating Discourse Phenomena in Neural Machine Translation](https://www.aclweb.org/anthology/papers/N/N18/N18-1118/), namely a multi-encoder version of Nematus.
 
 ### Specific usage for multi-encoder-usage:
 
